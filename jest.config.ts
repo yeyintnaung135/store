@@ -9,8 +9,10 @@ const config: Config = {
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   moduleNameMapper: {
-    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@/(.*)$": "<rootDir>/$1",
   },
+  // Playwright specs live under tests/ and must not run under Jest.
+  testPathIgnorePatterns: ["<rootDir>/tests/"],
 };
 
 export default createJestConfig(config);
