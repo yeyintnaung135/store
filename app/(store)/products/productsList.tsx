@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { products } from "./data";
 import Link from "next/link";
+import { products } from "./data";
 
 const PAGE_SIZE = Math.max(
   1,
@@ -11,12 +11,38 @@ const PAGE_SIZE = Math.max(
 
 type SortOption = "default" | "price-asc" | "price-desc";
 
-export default function ProductList() {
+type ProductListProps = {
+  initialCategory?: string;
+  initialSort?: string;
+};
+
+function resolveCategory(value: string | null | undefined) {
+  return value && products.some((product) => product.category === value)
+    ? value
+    : "All";
+}
+
+function resolveSort(value: string | null | undefined): SortOption {
+  if (value === "price-asc" || value === "price-desc" || value === "default") {
+    return value;
+  }
+
+  return "default";
+}
+
+export default function ProductList({
+  initialCategory = "All",
+  initialSort = "default",
+}: ProductListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-  const [sort, setSort] = useState<SortOption>("default");
+
+  const [category, setCategory] = useState(() =>
+    resolveCategory(initialCategory),
+  );
+
+  const [sort, setSort] = useState<SortOption>(() => resolveSort(initialSort));
 
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +74,19 @@ export default function ProductList() {
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
   const hasMore = visibleCount < filteredProducts.length;
+
+  function resetPagination() {
+    setVisibleCount(PAGE_SIZE);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setVisibleCount((count) => Math.min(count, filteredProducts.length));
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [filteredProducts.length]);
 
   useEffect(() => {
     if (!loading) return;
@@ -81,18 +120,35 @@ export default function ProductList() {
     return () => observer.disconnect();
   }, [hasMore, loading]);
 
-  function resetPagination() {
-    setVisibleCount(PAGE_SIZE);
-    setLoading(false);
+  function handleCategoryChange(value: string) {
+    setCategory(resolveCategory(value));
+    resetPagination();
+  }
+
+  function handleSortChange(value: string) {
+    setSort(resolveSort(value));
+    resetPagination();
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setCategory("All");
+    setSort("default");
+    resetPagination();
   }
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10">
       <div className="mb-8 flex flex-col gap-5">
         <div>
+          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-blue-600">
+            MM Store
+          </p>
+
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
             All Products
           </h1>
+
           <p className="mt-2 text-slate-500">
             Discover your next favorite product.
           </p>
@@ -102,8 +158,8 @@ export default function ProductList() {
           <input
             type="search"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+            onChange={(event) => {
+              setSearch(event.target.value);
               resetPagination();
             }}
             placeholder="Search products..."
@@ -113,10 +169,7 @@ export default function ProductList() {
 
           <select
             value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
-              resetPagination();
-            }}
+            onChange={(event) => handleCategoryChange(event.target.value)}
             aria-label="Filter by category"
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
@@ -129,10 +182,7 @@ export default function ProductList() {
 
           <select
             value={sort}
-            onChange={(e) => {
-              setSort(e.target.value as SortOption);
-              resetPagination();
-            }}
+            onChange={(event) => handleSortChange(event.target.value)}
             aria-label="Sort products by price"
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
@@ -142,9 +192,22 @@ export default function ProductList() {
           </select>
         </div>
 
-        <p className="text-sm text-slate-500">
-          Showing {visibleProducts.length} of {filteredProducts.length} products
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-slate-500" aria-live="polite">
+            Showing {visibleProducts.length} of {filteredProducts.length}{" "}
+            products
+          </p>
+
+          {(search || category !== "All" || sort !== "default") && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-sm font-medium text-blue-600 hover:text-blue-800"
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
       </div>
 
       {visibleProducts.length > 0 ? (
@@ -187,17 +250,14 @@ export default function ProductList() {
       ) : (
         <div className="rounded-xl border border-dashed border-slate-300 py-16 text-center">
           <p className="font-medium text-slate-700">No products found</p>
+
           <p className="mt-2 text-sm text-slate-500">
             Try another search term or category.
           </p>
+
           <button
             type="button"
-            onClick={() => {
-              setSearch("");
-              setCategory("All");
-              setSort("default");
-              resetPagination();
-            }}
+            onClick={clearFilters}
             className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
           >
             Clear Filters

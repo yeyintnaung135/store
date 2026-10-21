@@ -180,7 +180,9 @@ describe("ProductList", () => {
     expect(screen.getByText("No products found")).toBeInTheDocument();
     expect(screen.queryByRole("article")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear Filters" }));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Clear Filters" })[0],
+    );
 
     expect(screen.getAllByRole("article")).toHaveLength(PAGE_SIZE);
     expect(

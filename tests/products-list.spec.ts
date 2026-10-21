@@ -12,9 +12,9 @@ test("shows the first page of the catalog", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Wireless Headphones" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Power Bank" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Power Bank" })).toHaveCount(
+    0,
+  );
 
   const firstProduct = page
     .getByRole("article")
@@ -53,7 +53,9 @@ test("filters by category and search together", async ({ page }) => {
     page.getByRole("heading", { name: "Wireless Headphones" }),
   ).toHaveCount(0);
 
-  await page.getByRole("searchbox", { name: "Search products" }).fill("smart watch");
+  await page
+    .getByRole("searchbox", { name: "Search products" })
+    .fill("smart watch");
 
   await expect(page.getByText("Showing 1 of 1 products")).toBeVisible();
   await expect(
@@ -81,12 +83,16 @@ test("clears filters from the empty state", async ({ page }) => {
   await expect(page.getByText("No products found")).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Clear Filters" }).click();
+  const emptyState = page.getByText("No products found").locator("..");
+
+  await emptyState.getByRole("button", { name: "Clear Filters" }).click();
 
   await expect(page.getByText("Showing 10 of 50 products")).toBeVisible();
+
   await expect(
     page.getByRole("searchbox", { name: "Search products" }),
   ).toHaveValue("");
+
   await expect(page.getByLabel("Filter by category")).toHaveValue("All");
 });
 
@@ -95,10 +101,10 @@ test("loads more products when the list is scrolled", async ({ page }) => {
 
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 
+  await expect(page.getByRole("heading", { name: "Power Bank" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Power Bank" }),
+    page.getByText(/Showing (?:[2-9]\d|50) of 50 products/),
   ).toBeVisible();
-  await expect(page.getByText(/Showing (?:[2-9]\d|50) of 50 products/)).toBeVisible();
 });
 
 test("opens a product from the catalog", async ({ page }) => {
