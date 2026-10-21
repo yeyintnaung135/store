@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useCart } from "@/app/store/cart-context";
 
 const navLinks = [
   { label: "Home", href: "/" },
@@ -14,6 +15,11 @@ const navLinks = [
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const { state } = useCart();
+  const cartCount = state.items.reduce(
+    (total, item) => total + item.quantity,
+    0,
+  );
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
@@ -58,7 +64,7 @@ export default function Navbar() {
             href="/cart"
             className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Cart (0)
+            Cart ({cartCount})
           </Link>
 
           <Link

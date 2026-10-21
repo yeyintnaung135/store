@@ -4,6 +4,7 @@ export type Product = {
   price: number;
   category: string;
   image: string;
+  description: string;
 };
 
 const names = [
@@ -67,4 +68,5 @@ export const products: Product[] = names.map((name, index) => ({
   price: (index + 1) * 2500 + 15000,
   category: categories[index % categories.length],
   image: `https://placehold.co/600x400/eef2ff/334155?text=${encodeURIComponent(name)}`,
+  description: `${name} is a quality ${categories[index % categories.length].toLowerCase()} product, designed for everyday use. A practical choice for your lifestyle.`,
 }));
