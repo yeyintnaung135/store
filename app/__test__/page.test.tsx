@@ -1,16 +1,15 @@
-
-import { render, screen } from '@testing-library/react'
+import { render, screen } from "@testing-library/react";
 
 function HomePage() {
-  return <h1>Welcome to MM Store</h1>
+  return <h1>Welcome to MM Store</h1>;
 }
 
-describe('HomePage', () => {
-  it('renders the welcome heading', () => {
-    render(<HomePage />)
+describe("HomePage", () => {
+  it("renders the welcome heading", () => {
+    render(<HomePage />);
 
     expect(
-      screen.getByRole('heading', { name: 'Welcome to MM Store' })
-    ).toBeInTheDocument()
-  })
-})
+      screen.getByRole("heading", { name: "Welcome to MM Store" })
+    ).toBeInTheDocument();
+  });
+});

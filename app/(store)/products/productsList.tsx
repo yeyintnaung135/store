@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -11,8 +10,14 @@ export default function ProductList() {
   const [loading, setLoading] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const visibleProducts = products.slice(0, visibleCount);
-  const hasMore = visibleCount < products.length;
+  const [search, setSearch] = useState("");
+
+  const filteredProducts = products.filter((product) =>
+    product.name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const visibleProducts = filteredProducts.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredProducts.length;
 
   useEffect(() => {
     const target = sentinelRef.current;
@@ -26,7 +31,7 @@ export default function ProductList() {
           // Simulate fetching the next page
           const timer = setTimeout(() => {
             setVisibleCount((count) =>
-              Math.min(count + PAGE_SIZE, products.length)
+              Math.min(count + PAGE_SIZE, products.length),
             );
             setLoading(false);
           }, 400);
@@ -34,28 +39,35 @@ export default function ProductList() {
           return () => clearTimeout(timer);
         }
       },
-      { rootMargin: "200px" }
+      { rootMargin: "200px" },
     );
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [hasMore, loading]);
+  }, [hasMore, loading, filteredProducts.length]);
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
             All Products
           </h1>
-          <p className="mt-2 text-gray-500">
+          <p className="mt-2 text-slate-500">
             Discover your next favorite product.
           </p>
         </div>
 
-        <span className="text-sm text-gray-500">
-          {visibleCount} / {products.length}
-        </span>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setVisibleCount(PAGE_SIZE);
+          }}
+          placeholder="Search products..."
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 transition outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-xs"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -65,18 +77,16 @@ export default function ProductList() {
             className="overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:shadow-lg"
           >
             <div className="relative aspect-[3/2] bg-gray-100">
-            <img
-  src={product.image}
-  alt={product.name}
-  loading="lazy"
-  className="h-full w-full object-cover"
-/>
+              <img
+                src={product.image}
+                alt={product.name}
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
             </div>
 
             <div className="p-3">
-              <p className="text-xs text-blue-600">
-                {product.category}
-              </p>
+              <p className="text-xs text-blue-600">{product.category}</p>
               <h2 className="mt-1 font-semibold text-gray-900">
                 {product.name}
               </h2>

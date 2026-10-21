@@ -1,20 +1,19 @@
+"use client";
 
-'use client'
-
-import Link from 'next/link'
-import { useState } from 'react'
+import Link from "next/link";
+import { useState } from "react";
 
 const navLinks = [
-  { label: 'Home', href: '/' },
-  { label: 'Products', href: '/products' },
-  { label: 'Categories', href: '/categories' },
-  { label: 'About', href: '/about' },
-  { label: 'Contact', href: '/contact' },
-]
+  { label: "Home", href: "/" },
+  { label: "Products", href: "/products" },
+  { label: "Categories", href: "/categories" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
+];
 
 export default function Navbar() {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [searchOpen, setSearchOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
@@ -76,17 +75,14 @@ export default function Navbar() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="rounded-lg p-2 text-gray-700 hover:bg-gray-100 md:hidden"
           >
-            {menuOpen ? '✕' : '☰'}
+            {menuOpen ? "✕" : "☰"}
           </button>
         </div>
       </nav>
 
       {searchOpen && (
         <div className="border-t border-gray-100 px-4 py-3">
-          <form
-            action="/products"
-            className="mx-auto flex max-w-7xl gap-2"
-          >
+          <form action="/products" className="mx-auto flex max-w-7xl gap-2">
             <input
               name="search"
               type="search"
@@ -129,5 +125,5 @@ export default function Navbar() {
         </div>
       )}
     </header>
-  )
+  );
 }
