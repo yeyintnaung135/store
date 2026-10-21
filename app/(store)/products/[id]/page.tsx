@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { products } from "../data";
+import AddToCartBtn from "./addToCartBtn";
 
 type ProductDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -49,12 +50,7 @@ async function ProductContent({ params }: ProductDetailPageProps) {
 
           <p className="mt-3 leading-7 text-slate-600">{product.description}</p>
 
-          <button
-            type="button"
-            className="mt-8 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
-          >
-            Add to Cart
-          </button>
+          <AddToCartBtn product={product} />
         </div>
       </div>
     </section>

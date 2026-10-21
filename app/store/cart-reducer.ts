@@ -14,7 +14,8 @@ export type CartAction =
   | { type: "REMOVE_FROM_CART"; payload: { id: number } }
   | { type: "INCREASE_QUANTITY"; payload: { id: number } }
   | { type: "DECREASE_QUANTITY"; payload: { id: number } }
-  | { type: "CLEAR_CART" };
+  | { type: "CLEAR_CART" }
+  | { type: "LOAD_CART"; payload: CartItem[] };
 
 export const initialCartState: CartState = {
   items: [],
@@ -74,6 +75,12 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
 
     case "CLEAR_CART":
       return initialCartState;
+
+    case "LOAD_CART":
+      return {
+        ...state,
+        items: action.payload,
+      };
 
     default:
       return state;
