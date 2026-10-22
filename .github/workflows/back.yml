@@ -81,7 +81,7 @@ jobs:
         run: npm run build
 
       - name: Unit tests
-        run: npm test -- --runInBand
+        run: npm run test
 
       - name: Integration tests
         run: npm run test:integration
