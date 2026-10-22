@@ -63,14 +63,14 @@ test.describe("Admin Products", () => {
   test("should paginate products", async ({ page }) => {
     await expect(page.getByText("Showing 1–5 of 10 products")).toBeVisible();
 
-    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
 
     await expect(page.getByText("Showing 6–10 of 10 products")).toBeVisible();
 
     await expect(page.getByText("Classic Cotton T-Shirt")).toHaveCount(0);
     await expect(page.getByText("Bluetooth Speaker")).toBeVisible();
 
-    await page.getByRole("button", { name: "Previous" }).click();
+    await page.getByRole("button", { name: "Previous", exact: true }).click();
 
     await expect(page.getByText("Showing 1–5 of 10 products")).toBeVisible();
 
