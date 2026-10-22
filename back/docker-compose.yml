@@ -27,6 +27,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgresql://store:store@postgres:5432/store?schema=public
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
     depends_on:
       postgres:
         condition: service_healthy
