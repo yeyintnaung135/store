@@ -1,7 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import AddToCartBtn from "@/app/(store)/products/[id]/addToCartBtn";
-import Navbar from "@/app/(store)/components/navbar";
+import Navbar from "@/app/(store)/components/NavBarComponent";
 import CartPage from "@/app/(store)/cart/page";
 import { CartProvider } from "@/app/store/cart-context";
 
@@ -19,7 +25,7 @@ function renderCartExperience() {
       <Navbar />
       <AddToCartBtn product={product} />
       <CartPage />
-    </CartProvider>
+    </CartProvider>,
   );
 }
 
@@ -34,7 +40,7 @@ describe("cart integration", () => {
       .mockImplementation(() => {});
 
     expect(() => render(<Navbar />)).toThrow(
-      "useCart must be used within CartProvider"
+      "useCart must be used within CartProvider",
     );
 
     consoleError.mockRestore();
@@ -48,13 +54,13 @@ describe("cart integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
 
     expect(
-      await screen.findByRole("link", { name: "Cart (1)" })
+      await screen.findByRole("link", { name: "Cart (1)" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Shopping Cart" })
+      screen.getByRole("heading", { name: "Shopping Cart" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: product.name })
+      screen.getByRole("heading", { name: product.name }),
     ).toBeInTheDocument();
   });
 
@@ -66,7 +72,7 @@ describe("cart integration", () => {
     fireEvent.click(addButton);
 
     expect(
-      await screen.findByRole("link", { name: "Cart (2)" })
+      await screen.findByRole("link", { name: "Cart (2)" }),
     ).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
 
@@ -81,17 +87,17 @@ describe("cart integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
 
     expect(
-      await screen.findByRole("link", { name: "Cart (1)" })
+      await screen.findByRole("link", { name: "Cart (1)" }),
     ).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
         name: `Increase ${product.name} quantity`,
-      })
+      }),
     );
 
     expect(
-      await screen.findByRole("link", { name: "Cart (2)" })
+      await screen.findByRole("link", { name: "Cart (2)" }),
     ).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
 
@@ -102,11 +108,11 @@ describe("cart integration", () => {
     fireEvent.click(
       screen.getByRole("button", {
         name: `Decrease ${product.name} quantity`,
-      })
+      }),
     );
 
     expect(
-      await screen.findByRole("link", { name: "Cart (1)" })
+      await screen.findByRole("link", { name: "Cart (1)" }),
     ).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(within(summary).getByText("25,000 MMK")).toBeInTheDocument();
@@ -117,20 +123,20 @@ describe("cart integration", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
     expect(
-      await screen.findByRole("link", { name: "Cart (1)" })
+      await screen.findByRole("link", { name: "Cart (1)" }),
     ).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
         name: `Decrease ${product.name} quantity`,
-      })
+      }),
     );
 
     expect(
-      await screen.findByRole("link", { name: "Cart (0)" })
+      await screen.findByRole("link", { name: "Cart (0)" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Your Cart Is Empty" })
+      screen.getByRole("heading", { name: "Your Cart Is Empty" }),
     ).toBeInTheDocument();
   });
 
@@ -167,21 +173,21 @@ describe("cart integration", () => {
             quantity: 3,
           },
         ],
-      })
+      }),
     );
 
     render(
       <CartProvider>
         <Navbar />
         <CartPage />
-      </CartProvider>
+      </CartProvider>,
     );
 
     expect(
-      await screen.findByRole("link", { name: "Cart (3)" })
+      await screen.findByRole("link", { name: "Cart (3)" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: product.name })
+      screen.getByRole("heading", { name: product.name }),
     ).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
 
@@ -208,18 +214,18 @@ describe("cart integration", () => {
             quantity: 0,
           },
         ],
-      })
+      }),
     );
 
     render(
       <CartProvider>
         <Navbar />
         <CartPage />
-      </CartProvider>
+      </CartProvider>,
     );
 
     expect(
-      await screen.findByRole("link", { name: "Cart (2)" })
+      await screen.findByRole("link", { name: "Cart (2)" }),
     ).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.queryByText("bad")).not.toBeInTheDocument();
