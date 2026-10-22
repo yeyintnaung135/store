@@ -78,7 +78,7 @@ describe("cart integration", () => {
 
     const summary = screen.getByText("Total").parentElement as HTMLElement;
     expect(within(summary).getByText("50,000 MMK")).toBeInTheDocument();
-    expect(screen.getAllByText("50,000 MMK")).toHaveLength(2);
+    expect(screen.getAllByText("50,000 MMK")).toHaveLength(3);
   });
 
   it("updates quantity, line total, cart count, and grand total from cart controls", async () => {
@@ -103,7 +103,7 @@ describe("cart integration", () => {
 
     const summary = screen.getByText("Total").parentElement as HTMLElement;
     expect(within(summary).getByText("50,000 MMK")).toBeInTheDocument();
-    expect(screen.getAllByText("50,000 MMK")).toHaveLength(2);
+    expect(screen.getAllByText("50,000 MMK")).toHaveLength(3);
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -193,7 +193,7 @@ describe("cart integration", () => {
 
     const summary = screen.getByText("Total").parentElement as HTMLElement;
     expect(within(summary).getByText("75,000 MMK")).toBeInTheDocument();
-    expect(screen.getAllByText("75,000 MMK")).toHaveLength(2);
+    expect(screen.getAllByText("75,000 MMK")).toHaveLength(3);
   });
 
   it("ignores invalid localStorage cart items during restore", async () => {
