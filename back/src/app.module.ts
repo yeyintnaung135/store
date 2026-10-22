@@ -6,7 +6,11 @@ import { HealthModule } from './health/health.module.js';
 import { ProductsModule } from './products/products.module.js';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), HealthModule, ProductsModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    HealthModule,
+    ProductsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
