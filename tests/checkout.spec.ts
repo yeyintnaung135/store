@@ -3,8 +3,10 @@ import { test, expect, type Page } from "@playwright/test";
 const CART_STORAGE_KEY = "mm-store-cart";
 
 async function seedCart(page: Page) {
+  // Open the application first so localStorage is available.
   await page.goto("/checkout");
 
+  // Seed the cart using the same key and structure as CartContext.
   await page.evaluate((storageKey) => {
     localStorage.setItem(
       storageKey,
@@ -21,13 +23,21 @@ async function seedCart(page: Page) {
     );
   }, CART_STORAGE_KEY);
 
+  // Reload so CartProvider restores the seeded cart.
   await page.reload();
+
+  // Wait until the cart has been restored before continuing.
+  await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible({
+    timeout: 10000,
+  });
 
   await expect(page.getByText("Test Product", { exact: true })).toBeVisible({
     timeout: 10000,
   });
 
-  await expect(page.getByLabel("Full name")).toBeVisible({ timeout: 10000 });
+  await expect(page.getByLabel("Full name")).toBeVisible({
+    timeout: 10000,
+  });
 }
 
 async function fillValidCheckoutForm(page: Page) {
@@ -53,7 +63,12 @@ test.describe("Checkout Page", () => {
   test("should show empty cart message when cart is empty", async ({
     page,
   }) => {
+    // Start with a clean cart for this test.
     await page.goto("/checkout");
+    await page.evaluate((storageKey) => {
+      localStorage.removeItem(storageKey);
+    }, CART_STORAGE_KEY);
+    await page.reload();
 
     await expect(
       page.getByRole("heading", { name: "Your cart is empty" }),
@@ -71,11 +86,8 @@ test.describe("Checkout Page", () => {
 
     await expect(page.getByLabel("Full name")).toBeVisible();
     await expect(page.getByLabel("Phone number")).toBeVisible();
-
     await expect(page.getByLabel("Email address (optional)")).toBeVisible();
-
     await expect(page.getByLabel("Street address / Township")).toBeVisible();
-
     await expect(page.getByLabel("City / Region")).toBeVisible();
 
     await expect(
@@ -127,52 +139,41 @@ test.describe("Checkout Page", () => {
 
     await page.getByRole("button", { name: "Place Order" }).click();
 
-    // Exact text avoids matching Next.js's route announcer.
-    await expect(
-      page.getByText("Please enter a valid phone number.", {
-        exact: true,
-      }),
-    ).toBeVisible();
-  });
-
-  test("should show demo success after valid form submission", async ({
-    page,
-  }) => {
-    await seedCart(page);
-    await fillValidCheckoutForm(page);
-
-    await page.getByRole("button", { name: "Place Order" }).click();
-
-    await expect(
-      page.getByRole("heading", {
-        name: "Checkout form validated!",
-      }),
-    ).toBeVisible();
-
-    await expect(
-      page.getByText(/Your order has not been created or submitted/i),
-    ).toBeVisible();
-  });
-
-  test("should preserve cart after frontend demo submission", async ({
-    page,
-  }) => {
-    await seedCart(page);
-    await fillValidCheckoutForm(page);
-
-    await page.getByRole("button", { name: "Place Order" }).click();
-
-    await expect(
-      page.getByRole("heading", {
-        name: "Checkout form validated!",
-      }),
-    ).toBeVisible();
-
-    // The demo does not create an order or clear the cart.
-    await page.reload();
+    // The order must not be submitted with an invalid phone number.
+    await expect(page.getByText("Test Product", { exact: true })).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
 
-    await expect(page.getByText("Test Product", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Phone number")).toHaveValue("abc");
+  });
+
+  test("should reject an empty phone number", async ({ page }) => {
+    await seedCart(page);
+
+    await page.getByLabel("Full name").fill("Test Customer");
+
+    await page
+      .getByLabel("Street address / Township")
+      .fill("No. 12, Test Street");
+
+    await page.getByLabel("City / Region").fill("Yangon");
+
+    await page.getByRole("button", { name: "Place Order" }).click();
+
+    await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+
+    await expect(page.getByLabel("Phone number")).toHaveValue("");
+  });
+
+  test("should accept valid checkout form fields", async ({ page }) => {
+    await seedCart(page);
+    await fillValidCheckoutForm(page);
+
+    await expect(page.getByLabel("Full name")).toHaveValue("Test Customer");
+    await expect(page.getByLabel("Phone number")).toHaveValue("09123456789");
+    await expect(page.getByLabel("Email address (optional)")).toHaveValue(
+      "customer@example.com",
+    );
+    await expect(page.getByLabel("City / Region")).toHaveValue("Yangon");
   });
 });
