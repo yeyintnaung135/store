@@ -6,12 +6,12 @@ import { AppModule } from '../src/app.module.js';
 import { setupSwagger } from '../src/swagger.js';
 import { testDatabaseUrl } from './test-database.js';
 
+process.env.DATABASE_URL = testDatabaseUrl();
+
 describe('App (integration)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
-    process.env.DATABASE_URL = testDatabaseUrl();
-
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

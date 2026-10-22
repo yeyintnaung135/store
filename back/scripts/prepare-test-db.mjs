@@ -37,12 +37,14 @@ const testDatabaseUrl = readDatabaseUrl(new URL('../.env.test', import.meta.url)
 const testUrl = new URL(testDatabaseUrl);
 const testDatabase = decodeURIComponent(testUrl.pathname.replace(/^\//, ''));
 
-if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(testDatabase)) {
-  throw new Error(`Refusing to create database "${testDatabase}"`);
+if (testDatabase !== 'store_test') {
+  throw new Error(
+    `Refusing to prepare "${testDatabase}". Tests must use store_test, and local development uses store.`,
+  );
 }
 
 const adminUrl = new URL(testUrl);
-adminUrl.pathname = '/store';
+adminUrl.pathname = '/postgres';
 
 const client = new Client({ connectionString: adminUrl.toString() });
 await client.connect();

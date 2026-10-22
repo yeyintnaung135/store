@@ -21,6 +21,15 @@ export function testDatabaseUrl(): string {
       value = value.slice(1, -1);
     }
 
+    const database = decodeURIComponent(
+      new URL(value).pathname.replace(/^\//, ''),
+    );
+    if (database !== 'store_test') {
+      throw new Error(
+        `.env.test must use the store_test database, got "${database}"`,
+      );
+    }
+
     return value;
   }
 
