@@ -1,16 +1,31 @@
 import { expect, test, type Locator } from "@playwright/test";
 
 async function fillDate(input: Locator, value: string) {
+  await expect
+    .poll(() =>
+      input.evaluate((element) =>
+        Object.getOwnPropertyNames(element).some((key) =>
+          key.startsWith("__reactProps$"),
+        ),
+      ),
+    )
+    .toBe(true);
+
   await input.evaluate((element, nextValue) => {
     const dateInput = element as HTMLInputElement;
-    const valueSetter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    )?.set;
+    const propsKey = Object.getOwnPropertyNames(dateInput).find((key) =>
+      key.startsWith("__reactProps$"),
+    );
+    const onChange = propsKey
+      ? (
+          dateInput as unknown as Record<
+            string,
+            { onChange?: (event: { target: { value: string } }) => void }
+          >
+        )[propsKey]?.onChange
+      : undefined;
 
-    valueSetter?.call(dateInput, nextValue);
-    dateInput.dispatchEvent(new Event("input", { bubbles: true }));
-    dateInput.dispatchEvent(new Event("change", { bubbles: true }));
+    onChange?.({ target: { value: nextValue } });
   }, value);
 }
 
