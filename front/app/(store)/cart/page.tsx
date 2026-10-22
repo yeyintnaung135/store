@@ -20,7 +20,7 @@ export default function CartPage() {
   if (!isMounted) {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-16" aria-busy="true">
-        <p className="text-center text-slate-500">Loading your carts...</p>
+        <p className="text-center text-slate-500">Loading your cart...</p>
       </main>
     );
   }
