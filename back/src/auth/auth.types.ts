@@ -17,3 +17,7 @@ export type AuthToken = {
 export type AuthRequest = Request & {
   user: { sub: string; role: UserRole };
 };
+
+export type AuthSession = AuthToken & {
+  refreshToken: string;
+};

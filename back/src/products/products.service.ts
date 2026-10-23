@@ -7,10 +7,14 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
+import { ProductPhotoStorage } from './product-photo.storage.js';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly photos: ProductPhotoStorage,
+  ) {}
 
   async create(dto: CreateProductDto) {
     try {
@@ -22,6 +26,7 @@ export class ProductsService {
           price: dto.price,
           stock: dto.stock ?? 0,
           categoryId: dto.categoryId,
+          photoUrl: dto.photoUrl ? this.photos.save(dto.photoUrl) : null,
         },
         include: { category: true },
       });
@@ -93,10 +98,16 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
+    const nextPhoto =
+      dto.photoUrl === undefined
+        ? undefined
+        : dto.photoUrl
+          ? this.photos.save(dto.photoUrl)
+          : null;
 
     try {
-      return await this.prisma.product.update({
+      const updated = await this.prisma.product.update({
         where: { id },
         data: {
           ...(dto.name !== undefined ? { name: dto.name } : {}),
@@ -109,9 +120,12 @@ export class ProductsService {
           ...(dto.categoryId !== undefined
             ? { categoryId: dto.categoryId }
             : {}),
+          ...(nextPhoto !== undefined ? { photoUrl: nextPhoto } : {}),
         },
         include: { category: true },
       });
+      this.dropReplacedPhoto(current.photoUrl, nextPhoto);
+      return updated;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -132,11 +146,10 @@ export class ProductsService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const product = await this.findOne(id);
 
     try {
       await this.prisma.product.delete({ where: { id } });
-      return { message: 'Product deleted successfully' };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -148,6 +161,21 @@ export class ProductsService {
       }
 
       throw error;
+    }
+
+    if (product.photoUrl) {
+      this.photos.remove(product.photoUrl);
+    }
+
+    return { message: 'Product deleted successfully' };
+  }
+
+  private dropReplacedPhoto(
+    current: string | null,
+    next: string | null | undefined,
+  ) {
+    if (current && next !== undefined && current !== next) {
+      this.photos.remove(current);
     }
   }
 }

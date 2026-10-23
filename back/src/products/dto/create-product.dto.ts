@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   MaxLength,
   Min,
@@ -42,4 +43,12 @@ export class CreateProductDto {
   @ApiProperty({ example: '00000000-0000-4000-8000-000000000001' })
   @IsUUID()
   categoryId: string;
+
+  @ApiPropertyOptional({
+    example: 'https://cdn.example.com/headphones.jpg',
+  })
+  @IsOptional()
+  @IsUrl({ require_protocol: true })
+  @MaxLength(2048)
+  photoUrl?: string | null;
 }

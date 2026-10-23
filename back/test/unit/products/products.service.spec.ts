@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../../../src/generated/prisma/client.js';
 import { PrismaService } from '../../../src/prisma/prisma.service.js';
+import { ProductPhotoStorage } from '../../../src/products/product-photo.storage.js';
 import { ProductsService } from '../../../src/products/products.service.js';
 
 const categoryId = '00000000-0000-4000-8000-000000000001';
@@ -16,6 +17,11 @@ function knownRequestError(code: string) {
 
 describe('ProductsService', () => {
   let service: ProductsService;
+
+  const photos = {
+    save: vi.fn((link: string) => `stored:${link}`),
+    remove: vi.fn(),
+  };
 
   const prisma = {
     product: {
@@ -38,6 +44,7 @@ describe('ProductsService', () => {
       providers: [
         ProductsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: ProductPhotoStorage, useValue: photos },
       ],
     }).compile();
 
@@ -67,9 +74,30 @@ describe('ProductsService', () => {
           price: dto.price,
           stock: 4,
           categoryId,
+          photoUrl: null,
         },
         include: { category: true },
       });
+    });
+
+    it('stores one photo link', async () => {
+      prisma.product.create.mockResolvedValue({ id: productId });
+
+      await service.create({
+        ...dto,
+        photoUrl: 'https://cdn.example.com/headphones.jpg',
+      });
+
+      expect(photos.save).toHaveBeenCalledWith(
+        'https://cdn.example.com/headphones.jpg',
+      );
+      expect(prisma.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            photoUrl: 'stored:https://cdn.example.com/headphones.jpg',
+          }),
+        }),
+      );
     });
 
     it('defaults stock to 0 when it is omitted', async () => {
@@ -182,6 +210,27 @@ describe('ProductsService', () => {
       });
     });
 
+    it('replaces the stored photo and removes the previous link', async () => {
+      prisma.product.findUnique.mockResolvedValue({
+        id: productId,
+        photoUrl: 'stored:https://cdn.example.com/old.jpg',
+      });
+      prisma.product.update.mockResolvedValue({ id: productId });
+
+      await service.update(productId, {
+        photoUrl: 'https://cdn.example.com/new.jpg',
+      });
+
+      expect(prisma.product.update).toHaveBeenCalledWith({
+        where: { id: productId },
+        data: { photoUrl: 'stored:https://cdn.example.com/new.jpg' },
+        include: { category: true },
+      });
+      expect(photos.remove).toHaveBeenCalledWith(
+        'stored:https://cdn.example.com/old.jpg',
+      );
+    });
+
     it('rejects an unknown product before updating', async () => {
       prisma.product.findUnique.mockResolvedValue(null);
 
@@ -211,8 +260,11 @@ describe('ProductsService', () => {
   });
 
   describe('remove', () => {
-    it('deletes the product', async () => {
-      prisma.product.findUnique.mockResolvedValue({ id: productId });
+    it('deletes the product and its photo link', async () => {
+      prisma.product.findUnique.mockResolvedValue({
+        id: productId,
+        photoUrl: 'stored:https://cdn.example.com/old.jpg',
+      });
       prisma.product.delete.mockResolvedValue({ id: productId });
 
       await expect(service.remove(productId)).resolves.toEqual({
@@ -221,6 +273,9 @@ describe('ProductsService', () => {
       expect(prisma.product.delete).toHaveBeenCalledWith({
         where: { id: productId },
       });
+      expect(photos.remove).toHaveBeenCalledWith(
+        'stored:https://cdn.example.com/old.jpg',
+      );
     });
 
     it('rejects an unknown product before deleting', async () => {
@@ -239,6 +294,7 @@ describe('ProductsService', () => {
       await expect(service.remove(productId)).rejects.toThrow(
         'Cannot delete product because it is referenced by existing records',
       );
+      expect(photos.remove).not.toHaveBeenCalled();
     });
   });
 });

@@ -10,19 +10,24 @@ import { JwtAuthGuard } from '../../../src/auth/jwt-auth.guard.js';
 
 describe('AuthController', () => {
   let app: INestApplication<App>;
+
   const authService = {
     register: vi.fn(),
     login: vi.fn(),
+    refresh: vi.fn(),
+    logout: vi.fn(),
     me: vi.fn(),
     createResetToken: vi.fn(),
     resetPassword: vi.fn(),
   };
+
   const jwt = {
     verify: vi.fn(),
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
@@ -37,6 +42,7 @@ describe('AuthController', () => {
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),
     );
+
     await app.init();
   });
 
@@ -44,22 +50,27 @@ describe('AuthController', () => {
     await app.close();
   });
 
-  it('returns a JWT in the body and does not set a cookie', async () => {
+  it('returns access token in body and refresh token in an HttpOnly cookie', async () => {
     authService.login.mockResolvedValue({
       accessToken: 'jwt-token',
+      refreshToken: 'refresh-raw-token',
       user: { id: 'user-1' },
     });
 
     const response = await request(app.getHttpServer())
       .post('/auth/login')
-      .send({ email: 'aung@example.com', password: 'secret-password' })
+      .send({ identifier: 'aung@example.com', password: 'secret-password' })
       .expect(200);
 
     expect(response.body.accessToken).toBe('jwt-token');
-    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(response.body.refreshToken).toBeUndefined();
+
+    const cookie = [response.headers['set-cookie']].flat().join(';');
+    expect(cookie).toContain('refresh_token=refresh-raw-token');
+    expect(cookie.toLowerCase()).toContain('httponly');
   });
 
-  it('puts the reset token only in an httpOnly cookie', async () => {
+  it('puts the reset token only in an HttpOnly cookie', async () => {
     authService.createResetToken.mockResolvedValue('reset-raw-token');
 
     const response = await request(app.getHttpServer())
@@ -71,6 +82,7 @@ describe('AuthController', () => {
       message: 'If an account exists, the reset token was stored in a cookie',
     });
     expect(JSON.stringify(response.body)).not.toContain('reset-raw-token');
+
     const cookie = [response.headers['set-cookie']].flat().join(';');
     expect(cookie).toContain('reset_token=reset-raw-token');
     expect(cookie.toLowerCase()).toContain('httponly');
@@ -93,6 +105,44 @@ describe('AuthController', () => {
       'reset_token=',
     );
     expect(response.body).toEqual({ message: 'Password updated' });
+  });
+
+  it('refreshes the session using the refresh token cookie', async () => {
+    authService.refresh.mockResolvedValue({
+      accessToken: 'new-jwt-token',
+      refreshToken: 'new-refresh-token',
+      user: { id: 'user-1' },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', ['refresh_token=old-refresh-token'])
+      .expect(200);
+
+    expect(authService.refresh).toHaveBeenCalledWith('old-refresh-token');
+    expect(response.body.accessToken).toBe('new-jwt-token');
+    expect(response.body.refreshToken).toBeUndefined();
+
+    const cookie = [response.headers['set-cookie']].flat().join(';');
+    expect(cookie).toContain('refresh_token=new-refresh-token');
+    expect(cookie.toLowerCase()).toContain('httponly');
+  });
+
+  it('revokes refresh token and clears its cookie on logout', async () => {
+    authService.logout.mockResolvedValue(undefined);
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/logout')
+      .set('Cookie', ['refresh_token=old-refresh-token'])
+      .expect(200);
+
+    expect(authService.logout).toHaveBeenCalledWith('old-refresh-token');
+    expect(response.body).toEqual({
+      message: 'Logged out successfully',
+    });
+
+    const cookie = [response.headers['set-cookie']].flat().join(';');
+    expect(cookie).toContain('refresh_token=');
   });
 
   it('rejects /auth/me when the bearer token is missing', async () => {

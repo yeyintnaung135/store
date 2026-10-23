@@ -177,6 +177,40 @@ describe('Products (e2e)', () => {
     expect(product.id).toEqual(expect.any(String));
   });
 
+  it('stores one photo link on create and update, then drops it on delete', async () => {
+    const created = await request(baseUrl)
+      .post('/products')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        name: 'camera',
+        slug: slug('camera'),
+        price: 40,
+        categoryId,
+        photoUrl: 'https://cdn.example.com/camera.jpg',
+      })
+      .expect(201);
+
+    expect(created.body.photoUrl).toBe('https://cdn.example.com/camera.jpg');
+
+    const updated = await request(baseUrl)
+      .patch(`/products/${created.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ photoUrl: 'https://cdn.example.com/camera-2.jpg' })
+      .expect(200);
+
+    expect(updated.body.photoUrl).toBe('https://cdn.example.com/camera-2.jpg');
+
+    await request(baseUrl)
+      .delete(`/products/${created.body.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    await request(baseUrl)
+      .get(`/products/${created.body.id}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(404);
+  });
+
   it('POST /products defaults stock to 0', async () => {
     const response = await request(baseUrl)
       .post('/products')
