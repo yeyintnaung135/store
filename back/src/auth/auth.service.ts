@@ -9,27 +9,15 @@ import bcrypt from 'bcrypt';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
-import { LoginDto } from './dto/login.dto.js';
-import { RegisterDto } from './dto/register.dto.js';
+import { ForgotPasswordDto } from './types/forgot-password.dto.js';
+import { LoginDto } from './types/login.dto.js';
+import { RegisterDto } from './types/register.dto.js';
+import type { AuthToken, PublicUser } from './types/auth.types.js';
 import { RESET_TOKEN_MAX_AGE_MS } from './reset-token.cookie.js';
 
 const BCRYPT_ROUNDS = 12;
 
 type Identifier = { email: string } | { phone: string };
-
-export type PublicUser = {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  role: string;
-};
-
-export type AuthToken = {
-  accessToken: string;
-  user: PublicUser;
-};
 
 @Injectable()
 export class AuthService {

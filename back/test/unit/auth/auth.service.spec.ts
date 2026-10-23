@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma } from '../generated/prisma/client.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { AuthService } from './auth.service.js';
+import { Prisma } from '../../../src/generated/prisma/client.js';
+import { PrismaService } from '../../../src/prisma/prisma.service.js';
+import { AuthService } from '../../../src/auth/auth.service.js';
 
 vi.mock('bcrypt', () => ({
   default: {

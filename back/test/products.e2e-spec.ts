@@ -13,6 +13,7 @@ describe('Products (e2e)', () => {
 
   let baseUrl: string;
   let stop: () => Promise<void>;
+  let accessToken: string;
   let categoryId: string;
   let otherCategoryId: string;
 
@@ -31,6 +32,16 @@ describe('Products (e2e)', () => {
     });
     categoryId = category.id;
     otherCategoryId = otherCategory.id;
+
+    const registered = await request(baseUrl)
+      .post('/auth/register')
+      .send({
+        name: 'Product Editor',
+        password: 'secret-password',
+        email: `${runId}@example.com`,
+      })
+      .expect(201);
+    accessToken = registered.body.accessToken;
   });
 
   afterAll(async () => {
@@ -59,6 +70,7 @@ describe('Products (e2e)', () => {
   ) {
     const response = await request(baseUrl)
       .post('/products')
+      .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name,
         slug: slug(name),
@@ -80,6 +92,18 @@ describe('Products (e2e)', () => {
     };
   }
 
+  it('POST /products requires a bearer token', async () => {
+    await request(baseUrl)
+      .post('/products')
+      .send({
+        name: 'locked',
+        slug: slug('locked'),
+        price: 10,
+        categoryId,
+      })
+      .expect(401);
+  });
+
   it('POST /products creates a product in its category', async () => {
     const product = await createProduct('headphones');
 
@@ -99,6 +123,7 @@ describe('Products (e2e)', () => {
   it('POST /products defaults stock to 0', async () => {
     const response = await request(baseUrl)
       .post('/products')
+      .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'adapter',
         slug: slug('adapter'),
@@ -113,6 +138,7 @@ describe('Products (e2e)', () => {
   it('POST /products rejects an invalid body', async () => {
     await request(baseUrl)
       .post('/products')
+      .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'A',
         slug: 'x',
@@ -125,6 +151,7 @@ describe('Products (e2e)', () => {
   it('POST /products returns 404 when the category does not exist', async () => {
     await request(baseUrl)
       .post('/products')
+      .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'orphan',
         slug: slug('orphan'),
@@ -144,6 +171,7 @@ describe('Products (e2e)', () => {
 
     await request(baseUrl)
       .post('/products')
+      .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'speaker copy',
         slug: slug('speaker'),
@@ -207,6 +235,7 @@ describe('Products (e2e)', () => {
 
     const updated = await request(baseUrl)
       .patch(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
       .send({ price: 79.5, stock: 8, description: 'Mechanical keyboard' })
       .expect(200);
 
@@ -219,6 +248,7 @@ describe('Products (e2e)', () => {
 
     await request(baseUrl)
       .patch(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
       .send({ slug: slug('mouse') })
       .expect(409);
   });
@@ -228,6 +258,7 @@ describe('Products (e2e)', () => {
 
     await request(baseUrl)
       .delete(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
       .expect(200)
       .expect({ message: 'Product deleted successfully' });
 
@@ -262,6 +293,7 @@ describe('Products (e2e)', () => {
 
     await request(baseUrl)
       .delete(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
       .expect(409)
       .expect({
         statusCode: 409,

@@ -12,10 +12,10 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
-import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
-import { LoginDto } from './dto/login.dto.js';
-import { RegisterDto } from './dto/register.dto.js';
-import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { ForgotPasswordDto } from './types/forgot-password.dto.js';
+import { LoginDto } from './types/login.dto.js';
+import { RegisterDto } from './types/register.dto.js';
+import { ResetPasswordDto } from './types/reset-password.dto.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import {
   RESET_TOKEN_COOKIE,

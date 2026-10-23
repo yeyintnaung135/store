@@ -4,9 +4,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
-import { AuthController } from './auth.controller.js';
-import { AuthService } from './auth.service.js';
-import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { AuthController } from '../../../src/auth/auth.controller.js';
+import { AuthService } from '../../../src/auth/auth.service.js';
+import { JwtAuthGuard } from '../../../src/auth/jwt-auth.guard.js';
 
 describe('AuthController', () => {
   let app: INestApplication<App>;

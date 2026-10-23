@@ -1,8 +1,8 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma } from '../generated/prisma/client.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { ProductsService } from './products.service.js';
+import { Prisma } from '../../../src/generated/prisma/client.js';
+import { PrismaService } from '../../../src/prisma/prisma.service.js';
+import { ProductsService } from '../../../src/products/products.service.js';
 
 const categoryId = '00000000-0000-4000-8000-000000000001';
 const productId = '00000000-0000-4000-8000-000000000002';

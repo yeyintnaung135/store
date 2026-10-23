@@ -1,6 +1,7 @@
+import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ProductsController } from './products.controller.js';
-import { ProductsService } from './products.service.js';
+import { ProductsController } from '../../../src/products/products.controller.js';
+import { ProductsService } from '../../../src/products/products.service.js';
 
 describe('ProductsController', () => {
   let controller: ProductsController;
@@ -23,6 +24,7 @@ describe('ProductsController', () => {
           provide: ProductsService,
           useValue: mockProductsService,
         },
+        { provide: JwtService, useValue: { verify: vi.fn() } },
       ],
     }).compile();
 

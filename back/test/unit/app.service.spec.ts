@@ -1,4 +1,4 @@
-import { AppService } from './app.service.js';
+import { AppService } from '../../src/app.service.js';
 
 describe('AppService', () => {
   it('returns the greeting', () => {
