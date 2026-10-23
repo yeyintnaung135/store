@@ -25,16 +25,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="flex min-h-full flex-col">
-        <CartProvider>
-          <Navbar />
-          {children}
-        </CartProvider>
-      </body>
-    </html>
+    <CartProvider>
+      <Navbar />
+      {children}
+    </CartProvider>
   );
 }

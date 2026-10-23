@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { products } from "./data";
+import { getProducts, type Product } from "@/app/lib/product";
 
 const PAGE_SIZE = Math.max(
   1,
@@ -13,273 +13,293 @@ type SortOption = "default" | "price-asc" | "price-desc";
 
 type ProductListProps = {
   initialCategory?: string;
-  initialSort?: string;
+  initialSort?: SortOption;
 };
 
-function resolveCategory(value: string | null | undefined) {
-  return value && products.some((product) => product.category === value)
-    ? value
-    : "All";
-}
-
-function resolveSort(value: string | null | undefined): SortOption {
-  if (value === "price-asc" || value === "price-desc" || value === "default") {
-    return value;
-  }
-
-  return "default";
+function formatPrice(price: string | number) {
+  return Number(price).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
 }
 
 export default function ProductList({
-  initialCategory = "All",
+  initialCategory = "all",
   initialSort = "default",
 }: ProductListProps) {
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
-
-  const [category, setCategory] = useState(() =>
-    resolveCategory(initialCategory),
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [categoryId, setCategoryId] = useState(
+    initialCategory === "all" ? "" : initialCategory,
   );
-
-  const [sort, setSort] = useState<SortOption>(() => resolveSort(initialSort));
-
+  const [sort, setSort] = useState<SortOption>(initialSort);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState("");
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadingMoreRef = useRef(false);
 
-  const categories = useMemo(
-    () => ["All", ...new Set(products.map((product) => product.category))],
-    [],
-  );
+  // Debounce search input before calling the API.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const filteredProducts = useMemo(() => {
-    const result = products.filter((product) => {
-      const matchesSearch = product.name
-        .toLowerCase()
-        .includes(search.trim().toLowerCase());
+  // Load the first page whenever search or category changes.
+  useEffect(() => {
+    const controller = new AbortController();
 
-      const matchesCategory =
-        category === "All" || product.category === category;
+    async function loadFirstPage() {
+      setLoading(true);
+      setError("");
+      setProducts([]);
+      setPage(0);
+      setTotalPages(0);
+      loadingMoreRef.current = false;
 
-      return matchesSearch && matchesCategory;
-    });
+      try {
+        const result = await getProducts({
+          page: 1,
+          limit: PAGE_SIZE,
+          search: debouncedSearch,
+          categoryId: categoryId || undefined,
+          signal: controller.signal,
+        });
 
-    if (sort === "price-asc") {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sort === "price-desc") {
-      result.sort((a, b) => b.price - a.price);
+        setProducts(result.data);
+        setPage(result.meta.page);
+        setTotalPages(result.meta.totalPages);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to load products.",
+        );
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
     }
 
-    return result;
-  }, [search, category, sort]);
+    void loadFirstPage();
+    return () => controller.abort();
+  }, [debouncedSearch, categoryId]);
 
-  const visibleProducts = filteredProducts.slice(0, visibleCount);
-  const hasMore = visibleCount < filteredProducts.length;
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMoreRef.current || page === 0 || page >= totalPages) {
+      return;
+    }
 
-  function resetPagination() {
-    setVisibleCount(PAGE_SIZE);
-    setLoading(false);
-  }
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setError("");
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setVisibleCount((count) => Math.min(count, filteredProducts.length));
-    }, 0);
+    try {
+      const result = await getProducts({
+        page: page + 1,
+        limit: PAGE_SIZE,
+        search: debouncedSearch,
+        categoryId: categoryId || undefined,
+      });
 
-    return () => clearTimeout(timer);
-  }, [filteredProducts.length]);
-
-  useEffect(() => {
-    if (!loading) return;
-
-    const timer = setTimeout(() => {
-      setVisibleCount((count) =>
-        Math.min(count + PAGE_SIZE, filteredProducts.length),
+      setProducts((current) => {
+        const existingIds = new Set(current.map((product) => product.id));
+        return [
+          ...current,
+          ...result.data.filter((product) => !existingIds.has(product.id)),
+        ];
+      });
+      setPage(result.meta.page);
+      setTotalPages(result.meta.totalPages);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load more products.",
       );
-      setLoading(false);
-    }, 400);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [loading, page, totalPages, debouncedSearch, categoryId]);
 
-    return () => clearTimeout(timer);
-  }, [loading, filteredProducts.length]);
-
+  // Infinite scroll.
   useEffect(() => {
-    const target = sentinelRef.current;
-
-    if (!target || !hasMore || loading) return;
+    const element = sentinelRef.current;
+    if (
+      !element ||
+      loading ||
+      loadingMore ||
+      page >= totalPages ||
+      page === 0
+    ) {
+      return;
+    }
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setLoading(true);
-        }
+      (entries) => {
+        if (entries[0]?.isIntersecting) void loadMore();
       },
       { rootMargin: "200px" },
     );
 
-    observer.observe(target);
-
+    observer.observe(element);
     return () => observer.disconnect();
-  }, [hasMore, loading]);
+  }, [loadMore, loading, loadingMore, page, totalPages]);
 
-  function handleCategoryChange(value: string) {
-    setCategory(resolveCategory(value));
-    resetPagination();
-  }
+  // Build category options from products received from the API.
+  const categories = useMemo(() => {
+    const map = new Map<string, string>();
 
-  function handleSortChange(value: string) {
-    setSort(resolveSort(value));
-    resetPagination();
-  }
+    for (const product of products) {
+      if (product.category?.id && product.category?.name) {
+        map.set(product.category.id, product.category.name);
+      }
+    }
+
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [products]);
+
+  const sortedProducts = useMemo(() => {
+    const result = [...products];
+
+    if (sort === "price-asc") {
+      result.sort((a, b) => Number(a.price) - Number(b.price));
+    } else if (sort === "price-desc") {
+      result.sort((a, b) => Number(b.price) - Number(a.price));
+    }
+
+    return result;
+  }, [products, sort]);
 
   function clearFilters() {
     setSearch("");
-    setCategory("All");
+    setCategoryId("");
     setSort("default");
-    resetPagination();
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-8 flex flex-col gap-5">
-        <div>
-          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-blue-600">
-            MM Store
-          </p>
+    <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row">
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search products..."
+          aria-label="Search products"
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-black sm:flex-1"
+        />
 
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            All Products
-          </h1>
+        <select
+          value={categoryId}
+          onChange={(event) => setCategoryId(event.target.value)}
+          aria-label="Filter by category"
+          className="rounded-lg border border-gray-300 bg-white px-4 py-3"
+        >
+          <option value="">All categories</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
 
-          <p className="mt-2 text-slate-500">
-            Discover your next favorite product.
-          </p>
-        </div>
+        <select
+          value={sort}
+          onChange={(event) => setSort(event.target.value as SortOption)}
+          aria-label="Sort products"
+          className="rounded-lg border border-gray-300 bg-white px-4 py-3"
+        >
+          <option value="default">Newest</option>
+          <option value="price-asc">Price: Low to High</option>
+          <option value="price-desc">Price: High to Low</option>
+        </select>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              resetPagination();
-            }}
-            placeholder="Search products..."
-            aria-label="Search products"
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
-
-          <select
-            value={category}
-            onChange={(event) => handleCategoryChange(event.target.value)}
-            aria-label="Filter by category"
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          >
-            {categories.map((item) => (
-              <option key={item} value={item}>
-                {item === "All" ? "All Categories" : item}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={sort}
-            onChange={(event) => handleSortChange(event.target.value)}
-            aria-label="Sort products by price"
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          >
-            <option value="default">Default Sorting</option>
-            <option value="price-asc">Price: Low to High</option>
-            <option value="price-desc">Price: High to Low</option>
-          </select>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-500" aria-live="polite">
-            Showing {visibleProducts.length} of {filteredProducts.length}{" "}
-            products
-          </p>
-
-          {(search || category !== "All" || sort !== "default") && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-sm font-medium text-blue-600 hover:text-blue-800"
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="rounded-lg border border-gray-300 px-4 py-3 hover:bg-gray-50"
+        >
+          Clear
+        </button>
       </div>
 
-      {visibleProducts.length > 0 ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {visibleProducts.map((product) => (
-            <article
-              key={product.id}
-              className="overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:shadow-lg"
-            >
-              <div className="relative aspect-[3/2] bg-slate-100">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-
-              <div className="p-3">
-                <p className="text-xs text-blue-600">{product.category}</p>
-
-                <h2 className="mt-1 font-semibold text-slate-900">
-                  {product.name}
-                </h2>
-
-                <p className="mt-2 font-bold text-slate-900">
-                  {product.price.toLocaleString("en-US")} MMK
-                </p>
-
-                <Link
-                  href={`/products/${product.id}`}
-                  className="mt-3 block w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm text-white transition hover:bg-blue-600"
-                >
-                  View Product
-                </Link>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-slate-300 py-16 text-center">
-          <p className="font-medium text-slate-700">No products found</p>
-
-          <p className="mt-2 text-sm text-slate-500">
-            Try another search term or category.
-          </p>
-
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700"
+        >
+          <p>{error}</p>
           <button
             type="button"
-            onClick={clearFilters}
-            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            onClick={() => window.location.reload()}
+            className="mt-2 underline"
           >
-            Clear Filters
+            Retry
           </button>
         </div>
       )}
 
-      <div
-        ref={sentinelRef}
-        className="flex min-h-20 items-center justify-center"
-        aria-live="polite"
-      >
-        {loading && hasMore && (
-          <p className="text-sm text-slate-500">Loading more products...</p>
-        )}
-
-        {!hasMore && filteredProducts.length > 0 && (
-          <p className="text-sm text-slate-500">
-            You have viewed all {filteredProducts.length} matching products.
+      {loading ? (
+        <p className="py-12 text-center text-gray-500">Loading products...</p>
+      ) : sortedProducts.length === 0 ? (
+        <div className="py-16 text-center">
+          <h2 className="text-xl font-semibold">No products found</h2>
+          <p className="mt-2 text-gray-500">
+            Try a different search or clear your filters.
           </p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {sortedProducts.map((product) => (
+            <Link
+              key={product.id}
+              href={`/products/${product.id}`}
+              className="group overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:shadow-md"
+            >
+              <div className="flex aspect-square items-center justify-center bg-gray-100">
+                {product.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={product.photoUrl}
+                    alt={product.name}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm text-gray-400">No image</span>
+                )}
+              </div>
+
+              <div className="p-3 sm:p-4">
+                <p className="mb-1 text-xs text-gray-500">
+                  {product.category?.name ?? "Uncategorized"}
+                </p>
+                <h2 className="line-clamp-2 font-medium text-gray-900 group-hover:underline">
+                  {product.name}
+                </h2>
+                <p className="mt-2 font-semibold text-gray-900">
+                  {formatPrice(product.price)}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <div ref={sentinelRef} className="h-4" />
+
+      {loadingMore && (
+        <p className="py-6 text-center text-gray-500">
+          Loading more products...
+        </p>
+      )}
+
+      {!loading && page > 0 && page >= totalPages && products.length > 0 && (
+        <p className="py-6 text-center text-sm text-gray-500">
+          You&apos;ve reached the end.
+        </p>
+      )}
     </section>
   );
 }

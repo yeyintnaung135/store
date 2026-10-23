@@ -6,7 +6,7 @@ export type User = {
   name: string;
   email: string | null;
   phone: string | null;
-  role: string;
+  role: "ADMIN" | "CUSTOMER";
 };
 
 export type AuthResponse = {
@@ -24,7 +24,6 @@ function getApiUrl(): string {
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
-
   return localStorage.getItem(TOKEN_KEY);
 }
 
@@ -53,16 +52,14 @@ async function readResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-// LOGIN: backend DTO expects identifier + password.
 export async function login(input: {
   identifier: string;
   password: string;
 }): Promise<AuthResponse> {
   const response = await fetch(`${getApiUrl()}/auth/login`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({
       identifier: input.identifier.trim(),
       password: input.password,
@@ -70,13 +67,11 @@ export async function login(input: {
   });
 
   const data = await readResponse<AuthResponse>(response);
-
   saveAccessToken(data.accessToken);
 
   return data;
 }
 
-// REGISTER: backend still accepts email OR phone separately.
 export async function register(input: {
   name: string;
   email?: string;
@@ -85,9 +80,8 @@ export async function register(input: {
 }): Promise<AuthResponse> {
   const response = await fetch(`${getApiUrl()}/auth/register`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(input),
   });
 
@@ -100,43 +94,87 @@ export async function register(input: {
   return data;
 }
 
-// RESTORE CURRENT USER using the access token.
+export async function refreshSession(): Promise<AuthResponse> {
+  const response = await fetch(`${getApiUrl()}/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    clearAccessToken();
+    throw new Error("Session expired. Please log in again.");
+  }
+
+  const data = await readResponse<AuthResponse>(response);
+  saveAccessToken(data.accessToken);
+
+  return data;
+}
+
 export async function getCurrentUser(): Promise<User | null> {
-  const token = getAccessToken();
+  let token = getAccessToken();
 
-  if (!token) return null;
+  if (!token) {
+    try {
+      const session = await refreshSession();
+      token = session.accessToken;
+    } catch {
+      return null;
+    }
+  }
 
-  const response = await fetch(`${getApiUrl()}/auth/me`, {
+  let response = await fetch(`${getApiUrl()}/auth/me`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
+
+  if (response.status === 401) {
+    try {
+      const session = await refreshSession();
+
+      response = await fetch(`${getApiUrl()}/auth/me`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        cache: "no-store",
+      });
+    } catch {
+      clearAccessToken();
+      return null;
+    }
+  }
 
   if (response.status === 401) {
     clearAccessToken();
     return null;
   }
 
-  const data = await readResponse<User>(response);
-
-  return data;
+  return readResponse<User>(response);
 }
 
-export function logout(): void {
-  clearAccessToken();
+export async function logout(): Promise<void> {
+  try {
+    const response = await fetch(`${getApiUrl()}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Logout request failed");
+    }
+  } finally {
+    clearAccessToken();
+  }
 }
 
-// FORGOT PASSWORD: no reset token is stored in localStorage.
 export async function forgotPassword(input: {
   identifier: string;
 }): Promise<{ message: string }> {
   const response = await fetch(`${getApiUrl()}/auth/forgot-password`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({
       identifier: input.identifier.trim(),
@@ -146,19 +184,15 @@ export async function forgotPassword(input: {
   return readResponse<{ message: string }>(response);
 }
 
-// RESET PASSWORD: browser sends the HttpOnly cookie automatically.
-// The raw reset token is never read by frontend JavaScript.
 export async function resetPassword(input: {
   newPassword: string;
 }): Promise<{ message: string }> {
   const response = await fetch(`${getApiUrl()}/auth/reset-password`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({
-      newPassword: input.newPassword,
+      password: input.newPassword,
     }),
   });
 

@@ -33,7 +33,8 @@
     "pretest:integration": "prisma generate && npm run db:test:prepare",
     "test:integration": "vitest run --config ./vitest.config.integration.ts",
     "pretest:e2e": "npm run build && npm run db:test:prepare",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "prisma:seed": "prisma db seed"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

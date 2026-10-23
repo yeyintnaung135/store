@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/app/store/cart-context";
+import { useAuth } from "@/app/lib/AuthProvider";
 
 const navLinks = [
   { label: "Home", href: "/" },
@@ -15,11 +17,33 @@ const navLinks = [
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
   const { state } = useCart();
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
+
   const cartCount = state.items.reduce(
     (total, item) => total + item.quantity,
     0,
   );
+
+  async function handleLogout() {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+
+    try {
+      await logout();
+      setMenuOpen(false);
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
@@ -67,12 +91,33 @@ export default function Navbar() {
             Cart ({cartCount})
           </Link>
 
-          <Link
-            href="/login"
-            className="hidden rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 sm:inline-flex"
-          >
-            Login
-          </Link>
+          {!loading && user && user.role === "ADMIN" && (
+            <Link
+              href="/admin"
+              className="hidden rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 sm:inline-flex"
+            >
+              Admin
+            </Link>
+          )}
+
+          {!loading &&
+            (user ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="hidden rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50 sm:inline-flex"
+              >
+                {loggingOut ? "Logging out..." : "Logout"}
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="hidden rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 sm:inline-flex"
+              >
+                Login
+              </Link>
+            ))}
 
           <button
             type="button"
@@ -120,13 +165,35 @@ export default function Navbar() {
               </Link>
             ))}
 
-            <Link
-              href="/login"
-              onClick={() => setMenuOpen(false)}
-              className="mt-2 rounded-lg bg-blue-600 px-3 py-3 text-center font-semibold text-white"
-            >
-              Login
-            </Link>
+            {!loading && user && user.role === "ADMIN" && (
+              <Link
+                href="/admin"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-lg px-3 py-3 text-sm font-medium text-gray-700 hover:bg-blue-50"
+              >
+                Admin Dashboard
+              </Link>
+            )}
+
+            {!loading &&
+              (user ? (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="mt-2 rounded-lg bg-red-600 px-3 py-3 text-center font-semibold text-white disabled:opacity-50"
+                >
+                  {loggingOut ? "Logging out..." : "Logout"}
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="mt-2 rounded-lg bg-blue-600 px-3 py-3 text-center font-semibold text-white"
+                >
+                  Login
+                </Link>
+              ))}
           </div>
         </div>
       )}

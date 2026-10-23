@@ -25,7 +25,7 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   login: (input: LoginInput) => Promise<User>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
 
@@ -41,7 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
     } catch (error) {
       console.error("Failed to restore login session:", error);
-      // Keep the token if the API is temporarily unavailable.
       setUser(null);
     }
   }, []);
@@ -52,11 +51,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function restoreSession() {
       try {
         const currentUser = await getCurrentUser();
-        if (active) setUser(currentUser);
+
+        if (active) {
+          setUser(currentUser);
+        }
       } catch (error) {
         console.error("Failed to restore login session:", error);
+
+        if (active) {
+          setUser(null);
+        }
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
@@ -67,15 +75,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (input: LoginInput) => {
+  const login = useCallback(async (input: LoginInput): Promise<User> => {
     const result = await loginRequest(input);
     setUser(result.user);
     return result.user;
   }, []);
 
-  const logout = useCallback(() => {
-    logoutRequest();
-    setUser(null);
+  const logout = useCallback(async (): Promise<void> => {
+    try {
+      await logoutRequest();
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   return (

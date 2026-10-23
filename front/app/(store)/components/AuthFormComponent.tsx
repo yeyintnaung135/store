@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 import {
   login as loginRequest,
   register as registerRequest,
@@ -59,10 +60,11 @@ export default function AuthFormComponent({
       return;
     }
 
-    if (
-      !isEmail &&
-      !/^\+[1-9]\d{7,14}$/.test(cleanIdentifier.replace(/[\s()-]/g, ""))
-    ) {
+    const normalizedIdentifier = isEmail
+      ? cleanIdentifier.toLowerCase()
+      : cleanIdentifier.replace(/[\s()-]/g, "");
+
+    if (!isEmail && !/^\+[1-9]\d{7,14}$/.test(normalizedIdentifier)) {
       setError(
         "Enter a valid email address or phone number with country code, e.g. +959123456789.",
       );
@@ -73,31 +75,32 @@ export default function AuthFormComponent({
 
     try {
       if (isRegister) {
-        const normalizedPhone = cleanIdentifier.replace(/[\s()-]/g, "");
-
         await registerRequest({
           name: name.trim(),
           ...(isEmail
-            ? { email: cleanIdentifier.toLowerCase() }
-            : { phone: normalizedPhone }),
+            ? { email: normalizedIdentifier }
+            : { phone: normalizedIdentifier }),
           password,
         });
 
         setSuccess("Account created successfully. Please log in.");
-
         router.replace("/login");
         router.refresh();
-      } else {
-        await login({
-          identifier: isEmail
-            ? cleanIdentifier.toLowerCase()
-            : cleanIdentifier.replace(/[\s()-]/g, ""),
-          password,
-        });
-
-        router.replace("/");
-        router.refresh();
+        return;
       }
+
+      const user = await login({
+        identifier: normalizedIdentifier,
+        password,
+      });
+
+      if (user.role === "ADMIN") {
+        router.replace("/admin");
+      } else {
+        router.replace("/");
+      }
+
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error
@@ -158,7 +161,6 @@ export default function AuthFormComponent({
               >
                 Full name
               </label>
-
               <input
                 id="name"
                 name="name"
@@ -181,7 +183,6 @@ export default function AuthFormComponent({
             >
               Email or phone number
             </label>
-
             <input
               id="identifier"
               name="identifier"
@@ -250,7 +251,6 @@ export default function AuthFormComponent({
               >
                 Confirm password
               </label>
-
               <input
                 id="confirmPassword"
                 name="confirmPassword"

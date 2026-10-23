@@ -1,31 +1,125 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { jest } from "@jest/globals";
 
-import { products } from "@/app/(store)/products/data";
-import ProductList from "@/app/(store)/products/productsList";
+import type { Product, ProductListResponse } from "@/app/lib/product";
 
 const PAGE_SIZE = 10;
 
-class IntersectionObserverMock implements IntersectionObserver {
+type ProductQuery = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  categoryId?: string;
+  signal?: AbortSignal;
+};
+
+// Create the mock before loading ProductList.
+const mockGetProducts =
+  jest.fn<(params?: ProductQuery) => Promise<ProductListResponse>>();
+
+// doMock is not hoisted like jest.mock.
+jest.doMock("@/app/lib/product", () => ({
+  getProducts: mockGetProducts,
+}));
+
+// Import the component only after registering the mock.
+const ProductList = require("@/app/(store)/products/productsList").default;
+
+const electronics = {
+  id: "electronics",
+  name: "Electronics",
+  slug: "electronics",
+};
+
+const fashion = {
+  id: "fashion",
+  name: "Fashion",
+  slug: "fashion",
+};
+
+const productData = [
+  ["Wireless Headphones", "17500", electronics],
+  ["Mechanical Keyboard", "25000", electronics],
+  ["Wireless Mouse", "12000", electronics],
+  ["Smart Watch", "45000", fashion],
+  ["Laptop Stand", "18000", electronics],
+  ["Bluetooth Speaker", "22000", electronics],
+  ["USB-C Hub", "30000", electronics],
+  ["Webcam HD", "35000", electronics],
+  ["Power Bank", "20000", electronics],
+  ["USB Flash Drive", "8000", electronics],
+  ["Gaming Monitor", "150000", electronics],
+  ["Noise Cancelling Headphones", "65000", electronics],
+  ["Smart Watch Pro", "55000", fashion],
+  ["Laptop Cooling Pad", "16000", electronics],
+  ["USB Microphone", "40000", electronics],
+  ["Wireless Earbuds", "28000", electronics],
+  ["Gaming Controller", "32000", electronics],
+  ["Smart Plug", "10000", electronics],
+  ["SD Card 128GB", "14000", electronics],
+  ["Portable SSD", "90000", electronics],
+] as const;
+
+const products: Product[] = productData.map(
+  ([name, price, category], index) =>
+    ({
+      id: String(index + 1),
+      name,
+      slug: name.toLowerCase().replaceAll(" ", "-"),
+      description: `${name} for everyday use.`,
+      price,
+      stock: 20,
+      status: "ACTIVE",
+      photoUrl: null,
+      categoryId: category.id,
+      category,
+    }) as Product,
+);
+
+function createResponse(
+  items: Product[],
+  page: number,
+  limit: number,
+): ProductListResponse {
+  const start = (page - 1) * limit;
+
+  return {
+    data: items.slice(start, start + limit),
+    meta: {
+      total: items.length,
+      page,
+      limit,
+      totalPages: Math.ceil(items.length / limit),
+    },
+  };
+}
+
+class IntersectionObserverMock {
+  static instances: IntersectionObserverMock[] = [];
+
   readonly root = null;
   readonly rootMargin = "200px";
-  readonly scrollMargin = "0px";
   readonly thresholds = [0];
 
   constructor(private readonly callback: IntersectionObserverCallback) {
     IntersectionObserverMock.instances.push(this);
   }
 
-  static instances: IntersectionObserverMock[] = [];
-
   observe = jest.fn();
   unobserve = jest.fn();
   disconnect = jest.fn();
-  takeRecords = jest.fn(() => []);
+  takeRecords = jest.fn((): IntersectionObserverEntry[] => []);
 
-  intersect() {
+  trigger(isIntersecting = true) {
     this.callback(
-      [{ isIntersecting: true } as IntersectionObserverEntry],
-      this,
+      [{ isIntersecting } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
     );
   }
 }
@@ -36,190 +130,324 @@ function renderList() {
 
 describe("ProductList", () => {
   beforeEach(() => {
+    mockGetProducts.mockReset();
     IntersectionObserverMock.instances = [];
-    window.IntersectionObserver =
-      IntersectionObserverMock as unknown as typeof IntersectionObserver;
-    jest.useFakeTimers();
+
+    Object.defineProperty(window, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: IntersectionObserverMock,
+    });
+
+    mockGetProducts.mockImplementation(async (params = {}) => {
+      const search = params.search?.trim().toLowerCase() ?? "";
+      const categoryId = params.categoryId;
+      const page = params.page ?? 1;
+      const limit = params.limit ?? PAGE_SIZE;
+
+      const filtered = products.filter((product) => {
+        const matchesSearch =
+          !search ||
+          product.name.toLowerCase().includes(search) ||
+          (product.description ?? "").toLowerCase().includes(search);
+
+        const matchesCategory =
+          !categoryId || product.categoryId === categoryId;
+
+        return matchesSearch && matchesCategory;
+      });
+
+      return createResponse(filtered, page, limit);
+    });
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  it("shows the first page of products", () => {
+  it("loads and displays the first page", async () => {
     renderList();
 
     expect(
-      screen.getByRole("heading", { name: "All Products" }),
+      await screen.findByRole("heading", {
+        name: "Wireless Headphones",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("article")).toHaveLength(PAGE_SIZE);
-    expect(
-      screen.getByText(`Showing ${PAGE_SIZE} of ${products.length} products`),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: products[0].name }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: products[PAGE_SIZE].name }),
-    ).not.toBeInTheDocument();
 
-    const firstCard = screen
-      .getByRole("heading", { name: products[0].name })
-      .closest("article") as HTMLElement;
+    expect(mockGetProducts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        limit: PAGE_SIZE,
+      }),
+    );
 
-    expect(within(firstCard).getByText("17,500 MMK")).toBeInTheDocument();
     expect(
-      within(firstCard).getByRole("link", { name: "View Product" }),
+      screen.getByRole("link", {
+        name: /Wireless Headphones/i,
+      }),
     ).toHaveAttribute("href", "/products/1");
+
+    expect(screen.getAllByRole("link")).toHaveLength(PAGE_SIZE);
   });
 
-  it("filters by search text without caring about case or extra spaces", () => {
+  it("searches products case-insensitively", async () => {
     renderList();
 
+    await screen.findByRole("heading", {
+      name: "Wireless Headphones",
+    });
+
     fireEvent.change(
-      screen.getByRole("searchbox", { name: "Search products" }),
-      {
-        target: { value: "  HEADPHONES  " },
-      },
+      screen.getByRole("searchbox", {
+        name: "Search products",
+      }),
+      { target: { value: "HEADPHONES" } },
     );
 
-    expect(screen.getAllByRole("article")).toHaveLength(1);
+    await waitFor(() => {
+      expect(mockGetProducts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          search: "HEADPHONES",
+        }),
+      );
+    });
+
     expect(
-      screen.getByRole("heading", { name: "Wireless Headphones" }),
+      await screen.findByRole("heading", {
+        name: "Wireless Headphones",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Showing 1 of 1 products")).toBeInTheDocument();
-    expect(
-      screen.getByText("You have viewed all 1 matching products."),
-    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", {
+          name: "Mechanical Keyboard",
+        }),
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it("filters by category and can combine that filter with search", () => {
+  it("filters by category and combines it with search", async () => {
     renderList();
 
+    await screen.findByRole("heading", {
+      name: "Wireless Headphones",
+    });
+
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Filter by category" }),
-      {
-        target: { value: "Fashion" },
-      },
-    );
-
-    const fashionProducts = products.filter(
-      (product) => product.category === "Fashion",
+      screen.getByRole("combobox", {
+        name: "Filter by category",
+      }),
+      { target: { value: "fashion" } },
     );
 
     expect(
-      screen.getByText(
-        `Showing ${PAGE_SIZE} of ${fashionProducts.length} products`,
-      ),
+      await screen.findByRole("heading", {
+        name: "Smart Watch",
+      }),
     ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockGetProducts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          categoryId: "fashion",
+        }),
+      );
+    });
+
+    fireEvent.change(
+      screen.getByRole("searchbox", {
+        name: "Search products",
+      }),
+      { target: { value: "smart watch" } },
+    );
+
     expect(
-      screen.getByRole("heading", { name: "Smart Watch" }),
+      await screen.findByRole("heading", {
+        name: "Smart Watch",
+      }),
     ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockGetProducts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          categoryId: "fashion",
+          search: "smart watch",
+        }),
+      );
+    });
+
     expect(
-      screen.queryByRole("heading", { name: "Wireless Headphones" }),
+      screen.queryByRole("heading", {
+        name: "Wireless Headphones",
+      }),
     ).not.toBeInTheDocument();
-
-    fireEvent.change(
-      screen.getByRole("searchbox", { name: "Search products" }),
-      {
-        target: { value: "smart watch" },
-      },
-    );
-
-    expect(screen.getAllByRole("article")).toHaveLength(1);
-    expect(
-      screen.getByRole("heading", { name: "Smart Watch" }),
-    ).toBeInTheDocument();
   });
 
-  it("sorts the visible products by price", () => {
+  it("sorts loaded products by price descending and ascending", async () => {
     renderList();
 
+    await screen.findByRole("heading", {
+      name: "Wireless Headphones",
+    });
+
+    const sortSelect = screen.getByRole("combobox", {
+      name: "Sort products",
+    });
+
+    fireEvent.change(sortSelect, {
+      target: { value: "price-desc" },
+    });
+
+    await waitFor(() => {
+      const actual = screen
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent);
+
+      const expected = [...products]
+        .slice(0, PAGE_SIZE)
+        .sort((a, b) => Number(b.price) - Number(a.price))
+        .map((product) => product.name);
+
+      expect(actual).toEqual(expected);
+    });
+
+    fireEvent.change(sortSelect, {
+      target: { value: "price-asc" },
+    });
+
+    await waitFor(() => {
+      const actual = screen
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent);
+
+      const expected = [...products]
+        .slice(0, PAGE_SIZE)
+        .sort((a, b) => Number(a.price) - Number(b.price))
+        .map((product) => product.name);
+
+      expect(actual).toEqual(expected);
+    });
+  });
+
+  it("shows an empty state when no products match", async () => {
+    renderList();
+
+    await screen.findByRole("heading", {
+      name: "Wireless Headphones",
+    });
+
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Sort products by price" }),
+      screen.getByRole("searchbox", {
+        name: "Search products",
+      }),
+      { target: { value: "not-a-real-product" } },
+    );
+
+    expect(await screen.findByText("No products found")).toBeInTheDocument();
+  });
+
+  it("clears the filters", async () => {
+    renderList();
+
+    await screen.findByRole("heading", {
+      name: "Wireless Headphones",
+    });
+
+    fireEvent.change(
+      screen.getByRole("searchbox", {
+        name: "Search products",
+      }),
+      { target: { value: "headphones" } },
+    );
+
+    await waitFor(() => {
+      expect(mockGetProducts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          search: "headphones",
+        }),
+      );
+    });
+
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "Sort products",
+      }),
       { target: { value: "price-desc" } },
     );
 
-    const headings = screen.getAllByRole("heading", { level: 2 });
-    const highestFirst = [...products]
-      .sort((a, b) => b.price - a.price)
-      .slice(0, PAGE_SIZE)
-      .map((product) => product.name);
-
-    expect(headings.map((heading) => heading.textContent)).toEqual(
-      highestFirst,
-    );
-
-    fireEvent.change(
-      screen.getByRole("combobox", { name: "Sort products by price" }),
-      { target: { value: "price-asc" } },
-    );
-
-    const lowestFirst = [...products]
-      .sort((a, b) => a.price - b.price)
-      .slice(0, PAGE_SIZE)
-      .map((product) => product.name);
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     expect(
-      screen
-        .getAllByRole("heading", { level: 2 })
-        .map((heading) => heading.textContent),
-    ).toEqual(lowestFirst);
-  });
-
-  it("shows an empty state and restores the catalog when filters are cleared", () => {
-    renderList();
-
-    fireEvent.change(
-      screen.getByRole("searchbox", { name: "Search products" }),
-      {
-        target: { value: "not-a-real-product" },
-      },
-    );
-
-    expect(screen.getByText("No products found")).toBeInTheDocument();
-    expect(screen.queryByRole("article")).not.toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Clear Filters" })[0],
-    );
-
-    expect(screen.getAllByRole("article")).toHaveLength(PAGE_SIZE);
-    expect(
-      screen.getByRole("searchbox", { name: "Search products" }),
+      screen.getByRole("searchbox", {
+        name: "Search products",
+      }),
     ).toHaveValue("");
+
     expect(
-      screen.getByRole("combobox", { name: "Filter by category" }),
-    ).toHaveValue("All");
+      screen.getByRole("combobox", {
+        name: "Filter by category",
+      }),
+    ).toHaveValue("");
+
+    expect(
+      screen.getByRole("combobox", {
+        name: "Sort products",
+      }),
+    ).toHaveValue("default");
+
+    await waitFor(() => {
+      expect(mockGetProducts).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          limit: PAGE_SIZE,
+          search: "",
+        }),
+      );
+    });
   });
 
-  it("loads the next page when the list sentinel intersects", () => {
+  it("loads the next page when the sentinel intersects", async () => {
     renderList();
 
-    const observer = IntersectionObserverMock.instances.at(-1);
-    expect(observer).toBeDefined();
-
-    act(() => {
-      observer?.intersect();
+    await screen.findByRole("heading", {
+      name: "Wireless Headphones",
     });
 
-    expect(screen.getByText("Loading more products...")).toBeInTheDocument();
-
-    act(() => {
-      jest.advanceTimersByTime(400);
+    await waitFor(() => {
+      expect(IntersectionObserverMock.instances.length).toBeGreaterThan(0);
     });
 
-    expect(screen.getAllByRole("article")).toHaveLength(PAGE_SIZE * 2);
+    const observer =
+      IntersectionObserverMock.instances[
+        IntersectionObserverMock.instances.length - 1
+      ];
+
+    act(() => {
+      observer.trigger();
+    });
+
     expect(
-      screen.getByRole("heading", { name: products[PAGE_SIZE].name }),
+      await screen.findByRole("heading", {
+        name: "Noise Cancelling Headphones",
+      }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        `Showing ${PAGE_SIZE * 2} of ${products.length} products`,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Loading more products..."),
-    ).not.toBeInTheDocument();
+
+    expect(mockGetProducts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 2,
+        limit: PAGE_SIZE,
+      }),
+    );
+  });
+
+  it("shows an error when the API request fails", async () => {
+    mockGetProducts.mockRejectedValueOnce(
+      new Error("Unable to load products (500)"),
+    );
+
+    renderList();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to load products (500)",
+    );
   });
 });
