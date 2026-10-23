@@ -14,6 +14,7 @@ describe('Categories (e2e)', () => {
   let baseUrl: string;
   let stop: () => Promise<void>;
   let accessToken: string;
+  let customerToken: string;
 
   function slug(name: string): string {
     return `${runId}-${name}`;
@@ -22,15 +23,34 @@ describe('Categories (e2e)', () => {
   beforeAll(async () => {
     ({ baseUrl, stop } = await startTestServer());
 
-    const registered = await request(baseUrl)
+    const email = `${runId}@example.com`;
+    await request(baseUrl)
       .post('/auth/register')
       .send({
         name: 'Category Editor',
         password: 'secret-password',
-        email: `${runId}@example.com`,
+        email,
       })
       .expect(201);
-    accessToken = registered.body.accessToken;
+    await prisma.user.update({
+      where: { email },
+      data: { role: 'ADMIN' },
+    });
+    const loggedIn = await request(baseUrl)
+      .post('/auth/login')
+      .send({ email, password: 'secret-password' })
+      .expect(200);
+    accessToken = loggedIn.body.accessToken;
+
+    const customer = await request(baseUrl)
+      .post('/auth/register')
+      .send({
+        name: 'Category Customer',
+        password: 'secret-password',
+        email: `${runId}-customer@example.com`,
+      })
+      .expect(201);
+    customerToken = customer.body.accessToken;
   });
 
   afterAll(async () => {
@@ -59,6 +79,35 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .send({ name: 'Locked', slug: slug('locked') })
       .expect(401);
+  });
+
+  it('lets a customer read categories and blocks writes', async () => {
+    await request(baseUrl)
+      .get('/categories')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+
+    await request(baseUrl)
+      .get('/categories/00000000-0000-4000-8000-000000000088')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(404);
+
+    await request(baseUrl)
+      .post('/categories')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ name: slug('denied'), slug: slug('denied') })
+      .expect(403);
+
+    await request(baseUrl)
+      .patch('/categories/00000000-0000-4000-8000-000000000088')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ name: slug('denied') })
+      .expect(403);
+
+    await request(baseUrl)
+      .delete('/categories/00000000-0000-4000-8000-000000000088')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
   });
 
   it('creates, lists, updates, and deletes a category', async () => {

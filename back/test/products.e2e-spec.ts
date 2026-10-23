@@ -14,6 +14,7 @@ describe('Products (e2e)', () => {
   let baseUrl: string;
   let stop: () => Promise<void>;
   let accessToken: string;
+  let customerToken: string;
   let categoryId: string;
   let otherCategoryId: string;
 
@@ -33,15 +34,34 @@ describe('Products (e2e)', () => {
     categoryId = category.id;
     otherCategoryId = otherCategory.id;
 
-    const registered = await request(baseUrl)
+    const email = `${runId}@example.com`;
+    await request(baseUrl)
       .post('/auth/register')
       .send({
         name: 'Product Editor',
         password: 'secret-password',
-        email: `${runId}@example.com`,
+        email,
       })
       .expect(201);
-    accessToken = registered.body.accessToken;
+    await prisma.user.update({
+      where: { email },
+      data: { role: 'ADMIN' },
+    });
+    const loggedIn = await request(baseUrl)
+      .post('/auth/login')
+      .send({ email, password: 'secret-password' })
+      .expect(200);
+    accessToken = loggedIn.body.accessToken;
+
+    const customer = await request(baseUrl)
+      .post('/auth/register')
+      .send({
+        name: 'Product Customer',
+        password: 'secret-password',
+        email: `${runId}-customer@example.com`,
+      })
+      .expect(201);
+    customerToken = customer.body.accessToken;
   });
 
   afterAll(async () => {
@@ -92,7 +112,11 @@ describe('Products (e2e)', () => {
     };
   }
 
-  it('POST /products requires a bearer token', async () => {
+  it('requires a bearer token for every product route', async () => {
+    await request(baseUrl).get('/products').expect(401);
+    await request(baseUrl)
+      .get('/products/00000000-0000-4000-8000-000000000088')
+      .expect(401);
     await request(baseUrl)
       .post('/products')
       .send({
@@ -102,6 +126,39 @@ describe('Products (e2e)', () => {
         categoryId,
       })
       .expect(401);
+  });
+
+  it('lets a customer read products and blocks writes', async () => {
+    const product = await createProduct('visible');
+
+    await request(baseUrl)
+      .get('/products')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    await request(baseUrl)
+      .get(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+
+    await request(baseUrl)
+      .post('/products')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        name: 'locked',
+        slug: slug('customer'),
+        price: 10,
+        categoryId,
+      })
+      .expect(403);
+    await request(baseUrl)
+      .patch(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ price: 12 })
+      .expect(403);
+    await request(baseUrl)
+      .delete(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
   });
 
   it('POST /products creates a product in its category', async () => {
@@ -192,6 +249,7 @@ describe('Products (e2e)', () => {
 
     const filtered = await request(baseUrl)
       .get('/products')
+      .set('Authorization', `Bearer ${customerToken}`)
       .query({ search: 'cable', categoryId: otherCategoryId, limit: 1 })
       .expect(200);
 
@@ -206,6 +264,7 @@ describe('Products (e2e)', () => {
 
     const secondPage = await request(baseUrl)
       .get('/products')
+      .set('Authorization', `Bearer ${customerToken}`)
       .query({
         search: 'cable',
         categoryId: otherCategoryId,
@@ -218,9 +277,13 @@ describe('Products (e2e)', () => {
   });
 
   it('GET /products/:id returns 400 for a non-uuid and 404 when missing', async () => {
-    await request(baseUrl).get('/products/not-a-uuid').expect(400);
+    await request(baseUrl)
+      .get('/products/not-a-uuid')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(400);
     await request(baseUrl)
       .get('/products/00000000-0000-4000-8000-000000000088')
+      .set('Authorization', `Bearer ${customerToken}`)
       .expect(404)
       .expect({
         statusCode: 404,
@@ -262,7 +325,10 @@ describe('Products (e2e)', () => {
       .expect(200)
       .expect({ message: 'Product deleted successfully' });
 
-    await request(baseUrl).get(`/products/${product.id}`).expect(404);
+    await request(baseUrl)
+      .get(`/products/${product.id}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(404);
   });
 
   it('DELETE /products/:id returns 409 when an order still references it', async () => {

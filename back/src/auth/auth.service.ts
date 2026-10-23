@@ -8,11 +8,12 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client.js';
+import type { UserRole } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { ForgotPasswordDto } from './types/forgot-password.dto.js';
-import { LoginDto } from './types/login.dto.js';
-import { RegisterDto } from './types/register.dto.js';
-import type { AuthToken, PublicUser } from './types/auth.types.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { LoginDto } from './dto/login.dto.js';
+import { RegisterDto } from './dto/register.dto.js';
+import type { AuthToken, PublicUser } from './auth.types.js';
 import { RESET_TOKEN_MAX_AGE_MS } from './reset-token.cookie.js';
 
 const BCRYPT_ROUNDS = 12;
@@ -122,7 +123,7 @@ export class AuthService {
     name: string;
     email: string | null;
     phone: string | null;
-    role: string;
+    role: UserRole;
   }): AuthToken {
     return {
       accessToken: this.jwt.sign({ sub: user.id, role: user.role }),
@@ -135,7 +136,7 @@ export class AuthService {
     name: string;
     email: string | null;
     phone: string | null;
-    role: string;
+    role: UserRole;
   }): PublicUser {
     return {
       id: user.id,
