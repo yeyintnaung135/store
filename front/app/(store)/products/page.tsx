@@ -11,12 +11,7 @@ type ProductsPageProps = {
 async function ProductsContent({ searchParams }: ProductsPageProps) {
   const params = await searchParams;
 
-  return (
-    <ProductList
-      initialCategory={params.category ?? "All"}
-      initialSort={params.sort ?? "default"}
-    />
-  );
+  return <ProductList />;
 }
 
 export default function ProductsPage(props: ProductsPageProps) {

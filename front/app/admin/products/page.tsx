@@ -1,250 +1,245 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 
-type Product = {
-  id: number;
+import { useAuth } from "@/app/lib/AuthProvider";
+
+import {
+  createAdminProduct,
+  deleteAdminProduct,
+  getAdminProducts,
+  updateAdminProduct,
+  type AdminProduct,
+  type ProductInput,
+} from "@/app/lib/adminProducts";
+
+const PAGE_SIZE = 5;
+const LOW_STOCK_THRESHOLD = 5;
+
+type Category = {
+  id: string;
   name: string;
-  category: string;
-  price: number;
-  stock: number;
-  status: "Active" | "Draft";
+  slug: string;
 };
 
-const initialProducts: Product[] = [
-  {
-    id: 1,
-    name: "Classic Cotton T-Shirt",
-    category: "Clothing",
-    price: 25000,
-    stock: 45,
-    status: "Active",
-  },
-  {
-    id: 2,
-    name: "Premium Hoodie",
-    category: "Clothing",
-    price: 55000,
-    stock: 12,
-    status: "Active",
-  },
-  {
-    id: 3,
-    name: "Wireless Headphones",
-    category: "Electronics",
-    price: 85000,
-    stock: 20,
-    status: "Active",
-  },
-  {
-    id: 4,
-    name: "Leather Wallet",
-    category: "Accessories",
-    price: 35000,
-    stock: 0,
-    status: "Draft",
-  },
-  {
-    id: 5,
-    name: "Smart Watch",
-    category: "Electronics",
-    price: 120000,
-    stock: 8,
-    status: "Active",
-  },
-  {
-    id: 6,
-    name: "Canvas Backpack",
-    category: "Accessories",
-    price: 45000,
-    stock: 16,
-    status: "Active",
-  },
-  {
-    id: 7,
-    name: "Running Shoes",
-    category: "Footwear",
-    price: 75000,
-    stock: 25,
-    status: "Active",
-  },
-  {
-    id: 8,
-    name: "Baseball Cap",
-    category: "Accessories",
-    price: 18000,
-    stock: 30,
-    status: "Draft",
-  },
-  {
-    id: 9,
-    name: "Denim Jacket",
-    category: "Clothing",
-    price: 95000,
-    stock: 5,
-    status: "Active",
-  },
-  {
-    id: 10,
-    name: "Bluetooth Speaker",
-    category: "Electronics",
-    price: 65000,
-    stock: 14,
-    status: "Active",
-  },
-];
+type ProductStatus = "ACTIVE" | "DRAFT";
 
-const categories = [
-  "All Categories",
-  "Clothing",
-  "Electronics",
-  "Accessories",
-  "Footwear",
-];
+type ProductForm = {
+  name: string;
+  categoryId: string;
+  price: string;
+  stock: string;
+  status: ProductStatus;
+  description: string;
+  photoUrl: string;
+};
 
-const formatPrice = (price: number) => `${price.toLocaleString("en-US")} MMK`;
+const EMPTY_FORM: ProductForm = {
+  name: "",
+  categoryId: "",
+  price: "",
+  stock: "0",
+  status: "DRAFT",
+  description: "",
+  photoUrl: "",
+};
 
-const validationMessage =
-  "Enter a product name, a valid price, and a whole-number stock of zero or more.";
+const inputClass =
+  "w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+
+const buttonClass =
+  "rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
+
+function formatPrice(price: string | number): string {
+  return `${Number(price).toLocaleString("en-US")} MMK`;
+}
+
+function toSlug(value: string): string {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .trim()
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : "Something went wrong. Please try again.";
+}
+
+async function getCategories(): Promise<Category[]> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!apiUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured");
+  }
+
+  const { getAccessToken, refreshSession } = await import("@/app/lib/auth");
+
+  async function request(token: string) {
+    return fetch(`${apiUrl?.replace(/\/+$/, "")}/categories`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: "include",
+      cache: "no-store",
+    });
+  }
+
+  let token = getAccessToken();
+
+  if (!token) {
+    const session = await refreshSession();
+    token = session.accessToken;
+  }
+
+  let response = await request(token);
+
+  if (response.status === 401) {
+    const session = await refreshSession();
+    response = await request(session.accessToken);
+  }
+
+  const body: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const result = body as { message?: string | string[] } | null;
+    throw new Error(
+      Array.isArray(result?.message)
+        ? result.message.join(", ")
+        : result?.message || "Failed to load categories",
+    );
+  }
+
+  const result = body as Category[] | { data: Category[] };
+  const items = Array.isArray(result) ? result : result.data;
+
+  if (!Array.isArray(items)) {
+    throw new Error("Unexpected categories API response");
+  }
+
+  return items;
+}
 
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const { user, loading: authLoading } = useAuth();
+
+  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All Categories");
+  const [categoryId, setCategoryId] = useState("");
   const [page, setPage] = useState(1);
+
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [loading, setLoading] = useState(true);
+  const [categoryLoading, setCategoryLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const [pageError, setPageError] = useState("");
+  const [notice, setNotice] = useState("");
+
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
 
-  const [form, setForm] = useState({
-    name: "",
-    category: "Clothing",
-    price: "",
-    stock: "",
-    status: "Active" as Product["status"],
-  });
+  const [form, setForm] = useState<ProductForm>(EMPTY_FORM);
 
-  const pageSize = 5;
+  const isAdmin = user?.role === "ADMIN";
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchesSearch = product.name
-        .toLowerCase()
-        .includes(search.trim().toLowerCase());
-
-      const matchesCategory =
-        category === "All Categories" || product.category === category;
-
-      return matchesSearch && matchesCategory;
-    });
-  }, [products, search, category]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
-
-  const currentPage = Math.min(page, totalPages);
-
-  const visibleProducts = filteredProducts.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
+  const activeProducts = useMemo(
+    () => products.filter((product) => product.status === "ACTIVE").length,
+    [products],
   );
 
-  function openCreateModal() {
-    setEditingId(null);
-    setForm({
-      name: "",
-      category: "Clothing",
-      price: "",
-      stock: "",
-      status: "Active",
-    });
-    setFormError("");
-    setModalOpen(true);
-  }
+  const lowStockProducts = useMemo(
+    () =>
+      products.filter((product) => product.stock <= LOW_STOCK_THRESHOLD).length,
+    [products],
+  );
 
-  function openEditModal(product: Product) {
-    setEditingId(product.id);
-    setForm({
-      name: product.name,
-      category: product.category,
-      price: String(product.price),
-      stock: String(product.stock),
-      status: product.status,
-    });
-    setFormError("");
-    setModalOpen(true);
-  }
+  const productToDelete = products.find((product) => product.id === deleteId);
 
-  function closeModal() {
-    setModalOpen(false);
-    setFormError("");
-  }
+  const loadProducts = useCallback(async () => {
+    if (!isAdmin) return;
 
-  function saveProduct(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError("");
+    setLoading(true);
+    setPageError("");
 
-    const name = form.name.trim();
-    const price = Number(form.price);
-    const stock = Number(form.stock);
+    try {
+      const response = await getAdminProducts({
+        page,
+        limit: PAGE_SIZE,
+        search: search.trim(),
+        categoryId: categoryId || undefined,
+      });
 
-    if (
-      !name ||
-      form.price.trim() === "" ||
-      form.stock.trim() === "" ||
-      !Number.isFinite(price) ||
-      !Number.isFinite(stock) ||
-      price <= 0 ||
-      stock < 0 ||
-      !Number.isInteger(stock)
-    ) {
-      setFormError(validationMessage);
+      setProducts(response.data);
+      setTotalProducts(response.meta.total);
+      setTotalPages(Math.max(1, response.meta.totalPages));
+    } catch (error) {
+      setPageError(getErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, page, search, categoryId]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAdmin) {
+      setLoading(false);
       return;
     }
 
-    if (editingId !== null) {
-      setProducts((current) =>
-        current.map((product) =>
-          product.id === editingId
-            ? {
-                ...product,
-                name,
-                category: form.category,
-                price,
-                stock,
-                status: form.status,
-              }
-            : product,
-        ),
-      );
-    } else {
-      const newProduct: Product = {
-        id: Math.max(0, ...products.map((product) => product.id)) + 1,
-        name,
-        category: form.category,
-        price,
-        stock,
-        status: form.status,
-      };
+    void loadProducts();
+  }, [authLoading, isAdmin, loadProducts]);
 
-      setProducts((current) => [newProduct, ...current]);
-      setSearch("");
-      setCategory("All Categories");
-      setPage(1);
+  useEffect(() => {
+    if (authLoading || !isAdmin) return;
+
+    let cancelled = false;
+
+    async function loadCategoryOptions() {
+      setCategoryLoading(true);
+
+      try {
+        const result = await getCategories();
+
+        if (!cancelled) {
+          setCategories(result);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPageError(getErrorMessage(error));
+        }
+      } finally {
+        if (!cancelled) {
+          setCategoryLoading(false);
+        }
+      }
     }
 
-    closeModal();
-  }
+    void loadCategoryOptions();
 
-  function confirmDelete() {
-    if (deleteId === null) return;
-
-    setProducts((current) =>
-      current.filter((product) => product.id !== deleteId),
-    );
-
-    setDeleteId(null);
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, isAdmin]);
 
   function changeSearch(value: string) {
     setSearch(value);
@@ -252,11 +247,190 @@ export default function AdminProductsPage() {
   }
 
   function changeCategory(value: string) {
-    setCategory(value);
+    setCategoryId(value);
     setPage(1);
   }
 
-  const productToDelete = products.find((product) => product.id === deleteId);
+  function openCreateModal() {
+    setEditingId(null);
+    setForm({
+      ...EMPTY_FORM,
+      categoryId: categories[0]?.id ?? "",
+    });
+    setFormError("");
+    setNotice("");
+    setModalOpen(true);
+  }
+
+  function openEditModal(product: AdminProduct) {
+    setEditingId(product.id);
+
+    setForm({
+      name: product.name,
+      categoryId: product.categoryId,
+      price: String(product.price),
+      stock: String(product.stock),
+      status: product.status,
+      description: product.description ?? "",
+      photoUrl: product.photoUrl ?? "",
+    });
+
+    setFormError("");
+    setNotice("");
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    if (saving) return;
+
+    setModalOpen(false);
+    setFormError("");
+  }
+
+  async function saveProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError("");
+    setNotice("");
+
+    const name = form.name.trim();
+    const price = Number(form.price);
+    const stock = Number(form.stock);
+
+    if (
+      !name ||
+      name.length > 120 ||
+      form.price.trim() === "" ||
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      form.stock.trim() === "" ||
+      !Number.isInteger(stock) ||
+      stock < 0
+    ) {
+      setFormError(
+        "Enter a product name, a valid positive price, and a whole-number stock of zero or more.",
+      );
+      return;
+    }
+
+    if (!form.categoryId) {
+      setFormError("Please select a category.");
+      return;
+    }
+
+    const slug = toSlug(name);
+
+    if (!slug) {
+      setFormError("Product name must contain letters or numbers.");
+      return;
+    }
+
+    const input: ProductInput = {
+      name,
+      slug,
+      price,
+      stock,
+      status: form.status,
+      categoryId: form.categoryId,
+      description: form.description.trim() || null,
+      photoUrl: form.photoUrl.trim() || null,
+    };
+
+    setSaving(true);
+
+    try {
+      if (editingId) {
+        await updateAdminProduct(editingId, input);
+      } else {
+        await createAdminProduct(input);
+      }
+
+      setModalOpen(false);
+      setForm(EMPTY_FORM);
+      setNotice(
+        editingId
+          ? "Product updated successfully."
+          : "Product created successfully.",
+      );
+
+      // Return to the first page after creating a product.
+      if (!editingId) {
+        setPage(1);
+        setSearch("");
+        setCategoryId("");
+      } else {
+        await loadProducts();
+      }
+
+      if (!editingId) {
+        // State changes trigger the list reload.
+      }
+    } catch (error) {
+      setFormError(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
+
+    setDeleting(true);
+    setPageError("");
+    setNotice("");
+
+    try {
+      await deleteAdminProduct(deleteId);
+      setDeleteId(null);
+      setNotice("Product deleted successfully.");
+
+      // If the last item on a page was removed, move back one page.
+      if (products.length === 1 && page > 1) {
+        setPage((current) => current - 1);
+      } else {
+        await loadProducts();
+      }
+    } catch (error) {
+      setPageError(getErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="p-8 text-sm text-gray-500">Restoring your session...</div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-7xl rounded-xl border border-gray-200 bg-white p-8">
+        <h1 className="text-xl font-bold">Please log in</h1>
+        <p className="mt-2 text-sm text-gray-500">
+          Sign in to access product management.
+        </p>
+        <a
+          href="/login"
+          className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          Go to login
+        </a>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="mx-auto max-w-7xl rounded-xl border border-red-200 bg-white p-8">
+        <h1 className="text-xl font-bold text-red-700">Access denied</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          You need an ADMIN account to manage products.
+        </p>
+      </div>
+    );
+  }
+
+  const currentPage = Math.min(page, totalPages);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -272,30 +446,57 @@ export default function AdminProductsPage() {
         <button
           type="button"
           onClick={openCreateModal}
-          className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          disabled={categories.length === 0 || categoryLoading}
+          className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           + Add Product
         </button>
       </header>
 
+      {notice && (
+        <p
+          role="status"
+          className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
+        >
+          {notice}
+        </p>
+      )}
+
+      {pageError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          <p>{pageError}</p>
+          <button
+            type="button"
+            onClick={() => void loadProducts()}
+            className="mt-2 font-semibold underline"
+          >
+            Retry loading products
+          </button>
+        </div>
+      )}
+
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <p className="text-sm text-gray-500">Total Products</p>
-          <p className="mt-2 text-2xl font-bold">{products.length}</p>
+          <p className="mt-2 text-2xl font-bold">{totalProducts}</p>
+          <p className="mt-1 text-xs text-gray-400">All matching products</p>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <p className="text-sm text-gray-500">Active Products</p>
-          <p className="mt-2 text-2xl font-bold">
-            {products.filter((product) => product.status === "Active").length}
-          </p>
+          <p className="text-sm text-gray-500">Active Products on Page</p>
+          <p className="mt-2 text-2xl font-bold">{activeProducts}</p>
+          <p className="mt-1 text-xs text-gray-400">Current page only</p>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <p className="text-sm text-gray-500">Low Stock (5 or fewer)</p>
-          <p className="mt-2 text-2xl font-bold">
-            {products.filter((product) => product.stock <= 5).length}
+          <p className="text-sm text-gray-500">
+            Low Stock on Page (5 or fewer)
           </p>
+          <p className="mt-2 text-2xl font-bold">{lowStockProducts}</p>
+          <p className="mt-1 text-xs text-gray-400">Current page only</p>
         </div>
       </section>
 
@@ -310,18 +511,26 @@ export default function AdminProductsPage() {
           />
 
           <select
-            value={category}
+            value={categoryId}
             onChange={(event) => changeCategory(event.target.value)}
             aria-label="Filter by category"
             className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500"
+            disabled={categoryLoading}
           >
-            {categories.map((item) => (
-              <option key={item} value={item}>
-                {item}
+            <option value="">All Categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
               </option>
             ))}
           </select>
         </div>
+
+        {categoryLoading && (
+          <p className="px-5 py-2 text-xs text-gray-500">
+            Loading categories...
+          </p>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
@@ -337,74 +546,16 @@ export default function AdminProductsPage() {
             </thead>
 
             <tbody className="divide-y divide-gray-100">
-              {visibleProducts.map((product) => (
-                <tr key={product.id} className="transition hover:bg-gray-50">
-                  <td className="px-5 py-4">
-                    <div className="font-semibold text-gray-900">
-                      {product.name}
-                    </div>
-                    <div className="mt-1 text-xs text-gray-400">
-                      ID: {product.id}
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4 text-gray-600">
-                    {product.category}
-                  </td>
-
-                  <td className="whitespace-nowrap px-5 py-4 font-medium">
-                    {formatPrice(product.price)}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={
-                        product.stock <= 5
-                          ? "font-semibold text-red-600"
-                          : "text-gray-600"
-                      }
-                    >
-                      {product.stock}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        product.status === "Active"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {product.status}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(product)}
-                        className="font-medium text-blue-600 hover:text-blue-800"
-                        aria-label={`Edit ${product.name}`}
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setDeleteId(product.id)}
-                        className="font-medium text-red-600 hover:text-red-800"
-                        aria-label={`Delete ${product.name}`}
-                      >
-                        Delete
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-5 py-12 text-center text-gray-500"
+                  >
+                    Loading products...
                   </td>
                 </tr>
-              ))}
-
-              {visibleProducts.length === 0 && (
+              ) : products.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -413,6 +564,73 @@ export default function AdminProductsPage() {
                     No products found. Try another search or category.
                   </td>
                 </tr>
+              ) : (
+                products.map((product) => (
+                  <tr key={product.id} className="transition hover:bg-gray-50">
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-gray-900">
+                        {product.name}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-400">
+                        ID: {product.id}
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-gray-600">
+                      {product.category?.name ?? "Unknown category"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-5 py-4 font-medium">
+                      {formatPrice(product.price)}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span
+                        className={
+                          product.stock <= LOW_STOCK_THRESHOLD
+                            ? "font-semibold text-red-600"
+                            : "text-gray-600"
+                        }
+                      >
+                        {product.stock}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          product.status === "ACTIVE"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {product.status === "ACTIVE" ? "Active" : "Draft"}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(product)}
+                          className="font-medium text-blue-600 hover:text-blue-800"
+                          aria-label={`Edit ${product.name}`}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDeleteId(product.id)}
+                          className="font-medium text-red-600 hover:text-red-800"
+                          aria-label={`Delete ${product.name}`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -420,21 +638,20 @@ export default function AdminProductsPage() {
 
         <div className="flex flex-col justify-between gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center">
           <p className="text-sm text-gray-500">
-            Showing{" "}
-            {filteredProducts.length === 0
-              ? 0
-              : (currentPage - 1) * pageSize + 1}
-            {"–"}
-            {Math.min(currentPage * pageSize, filteredProducts.length)} of{" "}
-            {filteredProducts.length} products
+            {totalProducts === 0
+              ? "Showing 0 products"
+              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(
+                  (currentPage - 1) * PAGE_SIZE + products.length,
+                  totalProducts,
+                )} of ${totalProducts} products`}
           </p>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={currentPage === 1}
+              disabled={currentPage <= 1 || loading}
               onClick={() => setPage((current) => current - 1)}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+              className={buttonClass}
             >
               Previous
             </button>
@@ -445,9 +662,9 @@ export default function AdminProductsPage() {
 
             <button
               type="button"
-              disabled={currentPage === totalPages}
+              disabled={currentPage >= totalPages || loading}
               onClick={() => setPage((current) => current + 1)}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+              className={buttonClass}
             >
               Next
             </button>
@@ -459,9 +676,7 @@ export default function AdminProductsPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeModal();
-            }
+            if (event.target === event.currentTarget) closeModal();
           }}
         >
           <div
@@ -471,7 +686,7 @@ export default function AdminProductsPage() {
             className="my-auto w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
           >
             <h2 id="product-modal-title" className="text-xl font-bold">
-              {editingId !== null ? "Edit Product" : "Add Product"}
+              {editingId ? "Edit Product" : "Add Product"}
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
@@ -486,7 +701,6 @@ export default function AdminProductsPage() {
                 >
                   Product Name
                 </label>
-
                 <input
                   id="product-name"
                   required
@@ -495,7 +709,7 @@ export default function AdminProductsPage() {
                   onChange={(event) =>
                     setForm({ ...form, name: event.target.value })
                   }
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+                  className={inputClass}
                   placeholder="Enter product name"
                 />
               </div>
@@ -507,22 +721,22 @@ export default function AdminProductsPage() {
                 >
                   Category
                 </label>
-
                 <select
                   id="product-category"
-                  value={form.category}
+                  required
+                  value={form.categoryId}
                   onChange={(event) =>
-                    setForm({ ...form, category: event.target.value })
+                    setForm({ ...form, categoryId: event.target.value })
                   }
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
+                  className={inputClass}
+                  disabled={categoryLoading || categories.length === 0}
                 >
-                  {categories
-                    .filter((item) => item !== "All Categories")
-                    .map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
+                  <option value="">Select a category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -534,18 +748,17 @@ export default function AdminProductsPage() {
                   >
                     Price (MMK)
                   </label>
-
                   <input
                     id="product-price"
                     required
                     type="number"
-                    min="1"
-                    step="1"
+                    min="0.01"
+                    step="any"
                     value={form.price}
                     onChange={(event) =>
                       setForm({ ...form, price: event.target.value })
                     }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                    className={inputClass}
                     placeholder="25000"
                   />
                 </div>
@@ -557,7 +770,6 @@ export default function AdminProductsPage() {
                   >
                     Stock
                   </label>
-
                   <input
                     id="product-stock"
                     required
@@ -568,7 +780,7 @@ export default function AdminProductsPage() {
                     onChange={(event) =>
                       setForm({ ...form, stock: event.target.value })
                     }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                    className={inputClass}
                     placeholder="10"
                   />
                 </div>
@@ -581,21 +793,58 @@ export default function AdminProductsPage() {
                 >
                   Status
                 </label>
-
                 <select
                   id="product-status"
                   value={form.status}
                   onChange={(event) =>
                     setForm({
                       ...form,
-                      status: event.target.value as Product["status"],
+                      status: event.target.value as ProductStatus,
                     })
                   }
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
+                  className={inputClass}
                 >
-                  <option value="Active">Active</option>
-                  <option value="Draft">Draft</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="DRAFT">Draft</option>
                 </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="product-description"
+                  className="mb-1.5 block text-sm font-medium"
+                >
+                  Description
+                </label>
+                <textarea
+                  id="product-description"
+                  rows={3}
+                  value={form.description}
+                  onChange={(event) =>
+                    setForm({ ...form, description: event.target.value })
+                  }
+                  className={inputClass}
+                  placeholder="Optional product description"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="product-photo"
+                  className="mb-1.5 block text-sm font-medium"
+                >
+                  Photo URL
+                </label>
+                <input
+                  id="product-photo"
+                  type="url"
+                  value={form.photoUrl}
+                  onChange={(event) =>
+                    setForm({ ...form, photoUrl: event.target.value })
+                  }
+                  className={inputClass}
+                  placeholder="https://example.com/product.jpg"
+                />
               </div>
 
               {formError && (
@@ -608,16 +857,22 @@ export default function AdminProductsPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold hover:bg-gray-50"
+                  disabled={saving}
+                  className={buttonClass}
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                  disabled={saving || categoryLoading}
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {editingId !== null ? "Save Changes" : "Create Product"}
+                  {saving
+                    ? "Saving..."
+                    : editingId
+                      ? "Save Changes"
+                      : "Create Product"}
                 </button>
               </div>
             </form>
@@ -625,7 +880,7 @@ export default function AdminProductsPage() {
         </div>
       )}
 
-      {deleteId !== null && productToDelete && (
+      {deleteId && productToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div
             role="alertdialog"
@@ -645,21 +900,29 @@ export default function AdminProductsPage() {
               ? This action cannot be undone.
             </p>
 
+            {pageError && (
+              <p role="alert" className="mt-3 text-sm text-red-600">
+                {pageError}
+              </p>
+            )}
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setDeleteId(null)}
-                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold hover:bg-gray-50"
+                disabled={deleting}
+                className={buttonClass}
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                onClick={confirmDelete}
-                className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+                onClick={() => void confirmDelete()}
+                disabled={deleting}
+                className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Delete
+                {deleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>

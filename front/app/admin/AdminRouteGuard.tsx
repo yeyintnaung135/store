@@ -21,13 +21,15 @@ export default function AdminRouteGuard({ children }: { children: ReactNode }) {
     }
   }, [user, loading, router]);
 
-  if (loading || !user || user.role !== "ADMIN") {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-gray-500">Checking admin access...</p>
-      </div>
-    );
-  }
+  return (
+    <>
+      {children}
 
-  return <>{children}</>;
+      {loading && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80">
+          <p className="text-sm text-gray-500">Checking admin access...</p>
+        </div>
+      )}
+    </>
+  );
 }
