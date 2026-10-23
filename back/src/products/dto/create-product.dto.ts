@@ -9,7 +9,13 @@ import {
   MaxLength,
   Min,
   MinLength,
+  IsEnum,
 } from 'class-validator';
+
+export enum ProductStatus {
+  ACTIVE = 'ACTIVE',
+  DRAFT = 'DRAFT',
+}
 
 export class CreateProductDto {
   @ApiProperty({ example: 'Wireless Headphones' })
@@ -17,6 +23,10 @@ export class CreateProductDto {
   @MinLength(2)
   @MaxLength(200)
   name: string;
+
+  @IsOptional()
+  @IsEnum(ProductStatus)
+  status?: ProductStatus;
 
   @ApiProperty({ example: 'wireless-headphones' })
   @IsString()

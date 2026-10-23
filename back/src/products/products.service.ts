@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { CreateProductDto } from './dto/create-product.dto.js';
+import { CreateProductDto, ProductStatus } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 import { ProductPhotoStorage } from './product-photo.storage.js';
 
@@ -27,6 +27,7 @@ export class ProductsService {
           stock: dto.stock ?? 0,
           categoryId: dto.categoryId,
           photoUrl: dto.photoUrl ? this.photos.save(dto.photoUrl) : null,
+          status: dto.status ?? ProductStatus.DRAFT,
         },
         include: { category: true },
       });
@@ -114,6 +115,9 @@ export class ProductsService {
           ...(dto.categoryId !== undefined
             ? { categoryId: dto.categoryId }
             : {}),
+          ...(dto.status !== undefined && {
+            status: dto.status,
+          }),
         },
         include: { category: true },
       });
