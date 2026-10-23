@@ -5,6 +5,7 @@
 	back-start back-start-dev back-start-debug back-start-prod \
 	back-lint back-lint-fix \
 	back-prisma-generate back-prisma-migrate back-prisma-deploy back-prisma-studio back-db-test-prepare back-db-seed \
+	back-generate \
 	back-test back-test-watch back-test-cov back-test-debug back-test-integration back-test-e2e \
 	back-docker-up back-docker-down
 
@@ -37,6 +38,7 @@ help:
 	@echo   make back-prisma-studio     npx prisma studio
 	@echo   make back-db-test-prepare   create and migrate store_test
 	@echo   make back-db-seed           prisma db seed on store
+	@echo   make back-generate name=orders  nest module, controller, and service
 	@echo   make back-test              vitest unit tests
 	@echo   make back-test-watch        vitest watch
 	@echo   make back-test-cov          vitest coverage
@@ -124,6 +126,9 @@ back-db-test-prepare:
 
 back-db-seed:
 	npm --prefix back exec prisma db seed
+
+back-generate:
+	cd back && npx nest generate module $(name) --no-spec && npx nest generate controller $(name) --no-spec --crud false && npx nest generate service $(name) --no-spec
 
 back-test:
 	npm --prefix back test
