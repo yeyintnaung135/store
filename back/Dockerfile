@@ -8,8 +8,11 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-ENV DATABASE_URL=postgresql://store:store@localhost:5432/store?schema=public
+
+ENV DATABASE_URL="postgresql://store:store@localhost:5432/store?schema=public"
+
 RUN npm run build
+
 
 FROM node:24-alpine AS runtime
 

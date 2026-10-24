@@ -17,7 +17,7 @@ import {
   updateAdminProduct,
   type AdminProduct,
   type ProductInput,
-} from "@/app/lib/adminProducts";
+} from "@/app/lib/admin-products";
 
 const PAGE_SIZE = 5;
 const LOW_STOCK_THRESHOLD = 5;

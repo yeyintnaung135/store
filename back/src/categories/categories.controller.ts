@@ -27,12 +27,12 @@ import { UpdateCategoryDto } from './dto/update-category.dto.js';
 @ApiTags('Categories')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create category' })
   @ApiCreatedResponse({ description: 'Category created successfully' })
   create(@Body() dto: CreateCategoryDto) {
