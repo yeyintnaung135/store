@@ -5,6 +5,7 @@ import { PrismaClient } from '../../src/generated/prisma/client.js';
 import { seedCategories } from './category.seed.js';
 import { seedProducts } from './product.seed.js';
 import { seedUsers } from './user.seed.js';
+import { seedOrders } from './orders.seed.js';
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -19,6 +20,7 @@ async function main() {
   await seedUsers(prisma);
   await seedCategories(prisma);
   await seedProducts(prisma);
+  await seedOrders(prisma);
 
   console.log('All seeds completed');
 }
