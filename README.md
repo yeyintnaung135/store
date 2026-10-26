@@ -6,6 +6,11 @@ Frontend — Next.js
 - Centralized API Layer — Manage backend API requests in one place.
 - JWT Authentication — Manage access tokens and authenticated API requests.
 - Separation of Concerns — Separate UI, state management, and API logic.
+- Docker — Containerize application services and dependencies.
+- Automate build, test.
+-  Unit Testing — Test individual functions and services.
+- E2E Testing — Test complete API and user workflows.
+- Code Quality — ESLint, Prettier, and TypeScript type checking.
 
 Backend — NestJS
 
@@ -18,3 +23,8 @@ Backend — NestJS
 - Prisma ORM — Manage type-safe database queries and transactions.
 - Background Job Processing — Generate Excel files without blocking API requests.
 - cacheing
+- Automate build, test.
+-  Unit Testing — Test individual functions and services.
+- E2E Testing — Test complete API and user workflows.
+- Code Quality — ESLint, Prettier, and TypeScript type checking.
+
