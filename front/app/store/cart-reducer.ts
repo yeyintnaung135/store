@@ -1,5 +1,5 @@
 export type CartItem = {
-  id: number;
+  id: string;
   name: string;
   price: number;
   quantity: number;
@@ -11,7 +11,7 @@ export type CartState = {
 
 export type CartAction =
   | { type: "ADD_TO_CART"; payload: Omit<CartItem, "quantity"> }
-  | { type: "REMOVE_FROM_CART"; payload: { id: number } }
+  | { type: "REMOVE_FROM_CART"; payload: { id: string } }
   | { type: "INCREASE_QUANTITY"; payload: { id: number } }
   | { type: "DECREASE_QUANTITY"; payload: { id: number } }
   | { type: "CLEAR_CART" }
@@ -55,7 +55,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
       return {
         ...state,
         items: state.items.map((item) =>
-          item.id === action.payload.id
+          item.id === action.payload.id.toString()
             ? { ...item, quantity: item.quantity + 1 }
             : item,
         ),
@@ -66,7 +66,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         ...state,
         items: state.items
           .map((item) =>
-            item.id === action.payload.id
+            item.id === action.payload.id.toString()
               ? { ...item, quantity: item.quantity - 1 }
               : item,
           )

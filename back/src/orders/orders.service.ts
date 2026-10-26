@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -106,7 +106,7 @@ export class OrdersService {
 
       const order = await tx.order.create({
         data: {
-          orderNumber: `ORD-${randomUUID()}`,
+          orderNumber: `ORD-${randomBytes(8).toString('hex').toUpperCase()}`,
           userId,
           total,
           status: 'PENDING',

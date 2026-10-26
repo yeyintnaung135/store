@@ -29,7 +29,7 @@ export async function seedUsers(prisma: PrismaClient) {
 
   // Customer user
   const customerPasswordHash = await bcrypt.hash(
-    process.env.SEED_CUSTOMER_PASSWORD ?? 'Customer123!',
+    process.env.SEED_ADMIN_PASSWORD ?? 'Customer123!',
     12,
   );
 

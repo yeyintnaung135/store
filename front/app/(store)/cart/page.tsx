@@ -100,7 +100,7 @@ export default function CartPage() {
                     onClick={() =>
                       dispatch({
                         type: "DECREASE_QUANTITY",
-                        payload: { id: item.id },
+                        payload: { id: Number(item.id) },
                       })
                     }
                     className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 transition hover:bg-slate-100"
@@ -121,7 +121,7 @@ export default function CartPage() {
                     onClick={() =>
                       dispatch({
                         type: "INCREASE_QUANTITY",
-                        payload: { id: item.id },
+                        payload: { id: Number(item.id) },
                       })
                     }
                     className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 transition hover:bg-slate-100"

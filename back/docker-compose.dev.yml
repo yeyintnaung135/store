@@ -15,12 +15,26 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data_dev:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: .
       dockerfile: Dockerfile.dev
     ports:
       - '3000:3000'
+    env_file:
+      - .env
     environment:
       NODE_ENV: development
       WATCHPACK_POLLING: 'true'
@@ -29,12 +43,19 @@ services:
       DATABASE_URL: postgresql://store:store@postgres:5432/store?schema=public
       JWT_SECRET: dev-only-secret
       CORS_ORIGIN: http://localhost:3001
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      PRODUCT_EXPORT_DIR: storage/exports
     volumes:
       - .:/app
       - /app/node_modules
+      - ./storage/exports:/app/storage/exports
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:
   postgres_data_dev:
+  redis_data_dev:

@@ -2,86 +2,164 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+
+import { useAuth } from "@/app/lib/AuthProvider";
 import { useCart } from "@/app/store/cart-context";
+import { getAccessToken } from "@/app/lib/auth";
+import { createOrderAction } from "@/app/lib/orders-action";
+import type { Order } from "@/app/types/orders.tsx";
 
-type CheckoutForm = {
-  name: string;
-  phone: string;
-  email: string;
-  address: string;
-  city: string;
-  notes: string;
-};
-
-const initialForm: CheckoutForm = {
-  name: "",
-  phone: "",
-  email: "",
-  address: "",
-  city: "",
-  notes: "",
-};
+function formatPrice(price: number) {
+  return price.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
+}
 
 export default function CheckoutPage() {
-  const { state } = useCart();
-  const [form, setForm] = useState<CheckoutForm>(initialForm);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const { state, dispatch } = useCart();
 
-  const total = state.items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+
+  const items = state.items ?? [];
+
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const totalPrice = items.reduce(
+    (sum, item) => sum + Number(item.price) * item.quantity,
     0,
   );
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    setSuccess(false);
 
-    if (state.items.length === 0) {
-      setError("Your cart is empty. Please add products first.");
+    if (submitting) return;
+
+    if (authLoading) {
+      setError("Login အခြေအနေကို စစ်ဆေးနေပါတယ်။");
       return;
     }
 
-    const phone = form.phone.trim();
-
-    if (!/^\+?[0-9\s()-]{7,20}$/.test(phone)) {
-      setError("Please enter a valid phone number.");
+    if (!user) {
+      setError("Order တင်ရန် Login ဝင်ပေးပါ။");
       return;
     }
 
-    setSuccess(true);
+    if (!items.length) {
+      setError("Cart ထဲမှာ ပစ္စည်းမရှိပါဘူး။");
+      return;
+    }
+
+    const token = getAccessToken();
+
+    if (!token) {
+      setError("Login session မရှိပါဘူး။ ပြန် Login ဝင်ပေးပါ။");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const order = await createOrderAction(
+        {
+          items: items.map((item) => ({
+            productId: item.id,
+            quantity: item.quantity,
+          })),
+        },
+        token,
+      );
+
+      setCreatedOrder(order);
+
+      // Order အောင်မြင်ပြီးမှ Cart ကိုရှင်းပါ။
+      dispatch({ type: "CLEAR_CART" });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Order တင်လို့မရပါဘူး။ ထပ်ကြိုးစားပေးပါ။",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function handleChange(
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) {
-    const { name, value } = event.target;
-
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
-
-    setError("");
-    setSuccess(false);
-  }
-
-  const inputClass =
-    "mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
-
-  if (state.items.length === 0 && !success) {
+  if (authLoading) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
-        <h1 className="text-3xl font-bold text-slate-900">
-          Your cart is empty
-        </h1>
-        <p className="mt-3 text-slate-500">
-          Add products to your cart before checking out.
+      <main className="mx-auto max-w-5xl px-4 py-16 text-center">
+        Loading...
+      </main>
+    );
+  }
+
+  if (createdOrder) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-16">
+        <div className="rounded-2xl border p-8 text-center shadow-sm">
+          <div className="mb-4 text-5xl text-green-600">✓</div>
+
+          <h1 className="mb-3 text-3xl font-bold">
+            Order Created Successfully!
+          </h1>
+
+          <p className="mb-6 text-gray-500">
+            သင့် Order ကို Server မှာ အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။
+          </p>
+
+          <div className="mb-6 rounded-xl bg-gray-50 p-5 text-left">
+            <div className="flex justify-between gap-4 py-2">
+              <span className="text-gray-500">Order Number</span>
+              <strong>{createdOrder.orderNumber}</strong>
+            </div>
+
+            <div className="flex justify-between gap-4 py-2">
+              <span className="text-gray-500">Status</span>
+              <strong>{createdOrder.status}</strong>
+            </div>
+
+            <div className="flex justify-between gap-4 py-2">
+              <span className="text-gray-500">Total</span>
+              <strong>{formatPrice(Number(createdOrder.total))}</strong>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-center gap-3 sm:flex-row">
+            <Link
+              href="/orders"
+              className="rounded-xl bg-black px-6 py-3 font-semibold text-white hover:bg-gray-800"
+            >
+              My Orders
+            </Link>
+
+            <Link
+              href="/products"
+              className="rounded-xl border px-6 py-3 font-semibold hover:bg-gray-50"
+            >
+              Continue Shopping
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!items.length) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <h1 className="mb-3 text-3xl font-bold">Your Cart Is Empty</h1>
+
+        <p className="mb-6 text-gray-500">
+          Order မတင်ခင် Cart ထဲကို ပစ္စည်းထည့်ပေးပါ။
         </p>
+
         <Link
           href="/products"
-          className="mt-6 inline-block rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+          className="rounded-xl bg-black px-6 py-3 font-semibold text-white"
         >
           Browse Products
         </Link>
@@ -90,229 +168,105 @@ export default function CheckoutPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Checkout</h1>
-        <p className="mt-2 text-slate-500">
-          Enter your delivery details to continue.
+    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-8">
+        <Link href="/cart" className="text-sm text-gray-500 hover:text-black">
+          ← Back to Cart
+        </Link>
+
+        <h1 className="mt-4 text-3xl font-bold">Checkout</h1>
+
+        <p className="mt-2 text-gray-500">
+          Order အချက်အလက်များကို စစ်ဆေးပြီး Place Order နှိပ်ပါ။
         </p>
       </div>
 
-      {success ? (
-        <section className="mt-8 rounded-2xl border border-green-200 bg-green-50 p-8">
-          <h2 className="text-2xl font-bold text-green-800">
-            Checkout form validated!
-          </h2>
-          <p className="mt-3 leading-7 text-green-700">
-            This is a frontend demo. Your order has not been created or
-            submitted. Order processing will be enabled after the API is
-            connected.
-          </p>
-          <Link
-            href="/cart"
-            className="mt-6 inline-block font-semibold text-green-800 underline"
-          >
-            Return to cart
-          </Link>
-        </section>
-      ) : (
-        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8"
-          >
-            <section>
-              <h2 className="text-xl font-bold text-slate-900">
-                Contact information
-              </h2>
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
+        <section className="lg:col-span-2">
+          <div className="rounded-2xl border p-5 sm:p-8">
+            <h2 className="mb-5 text-xl font-bold">Your Items</h2>
 
-              <div className="mt-5">
-                <label
-                  htmlFor="name"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Full name
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  autoComplete="name"
-                  required
-                  minLength={2}
-                  maxLength={100}
-                  value={form.name}
-                  onChange={handleChange}
-                  placeholder="Your full name"
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="mt-5">
-                <label
-                  htmlFor="phone"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Phone number
-                </label>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                  maxLength={20}
-                  value={form.phone}
-                  onChange={handleChange}
-                  placeholder="+959..."
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="mt-5">
-                <label
-                  htmlFor="email"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Email address (optional)
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  maxLength={254}
-                  value={form.email}
-                  onChange={handleChange}
-                  placeholder="you@example.com"
-                  className={inputClass}
-                />
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-bold text-slate-900">
-                Delivery address
-              </h2>
-
-              <div className="mt-5">
-                <label
-                  htmlFor="address"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Street address / Township
-                </label>
-                <textarea
-                  id="address"
-                  name="address"
-                  required
-                  minLength={5}
-                  maxLength={500}
-                  rows={3}
-                  value={form.address}
-                  onChange={handleChange}
-                  placeholder="Enter your full delivery address"
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="mt-5">
-                <label
-                  htmlFor="city"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  City / Region
-                </label>
-                <input
-                  id="city"
-                  name="city"
-                  required
-                  maxLength={100}
-                  value={form.city}
-                  onChange={handleChange}
-                  placeholder="e.g. Yangon"
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="mt-5">
-                <label
-                  htmlFor="notes"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Delivery notes (optional)
-                </label>
-                <textarea
-                  id="notes"
-                  name="notes"
-                  rows={2}
-                  maxLength={500}
-                  value={form.notes}
-                  onChange={handleChange}
-                  placeholder="Additional instructions"
-                  className={inputClass}
-                />
-              </div>
-            </section>
-
-            {error && (
-              <p
-                role="alert"
-                className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-              >
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-blue-600 px-5 py-3.5 font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
-            >
-              Place Order
-            </button>
-
-            <Link
-              href="/cart"
-              className="block text-center text-sm font-medium text-slate-500 hover:text-slate-900"
-            >
-              Back to cart
-            </Link>
-          </form>
-
-          <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="text-xl font-bold text-slate-900">Order Summary</h2>
-
-            <div className="mt-5 space-y-4">
-              {state.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex justify-between gap-4 text-sm"
-                >
+            <div className="divide-y">
+              {items.map((item) => (
+                <div key={item.id} className="flex justify-between gap-4 py-4">
                   <div>
-                    <p className="font-medium text-slate-800">{item.name}</p>
-                    <p className="mt-1 text-slate-500">Qty: {item.quantity}</p>
+                    <h3 className="font-medium">{item.name}</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {formatPrice(Number(item.price))} × {item.quantity}
+                    </p>
                   </div>
-                  <p className="shrink-0 font-medium text-slate-900">
-                    {(item.price * item.quantity).toLocaleString("en-US")} MMK
+
+                  <p className="shrink-0 font-semibold">
+                    {formatPrice(Number(item.price) * item.quantity)}
                   </p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 border-t border-slate-200 pt-5">
-              <div className="flex items-center justify-between gap-4">
-                <span className="font-semibold text-slate-900">Subtotal</span>
-                <span className="text-xl font-bold text-slate-900">
-                  {total.toLocaleString("en-US")} MMK
-                </span>
+            {error && (
+              <div
+                role="alert"
+                className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+              >
+                {error}
               </div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Delivery fees, if any, will be confirmed when the order
-                processing API is implemented.
+            )}
+
+            {!user && (
+              <p className="mt-5 text-sm text-amber-700">
+                Order တင်ရန်{" "}
+                <Link
+                  href="/login?redirect=/checkout"
+                  className="font-semibold underline"
+                >
+                  Login ဝင်ပါ
+                </Link>
+                ။
               </p>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <button
+                type="submit"
+                disabled={submitting || !user}
+                className="mt-6 w-full rounded-xl bg-black px-6 py-4 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting
+                  ? "Creating Order..."
+                  : `Place Order · ${formatPrice(totalPrice)}`}
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <aside className="rounded-2xl border p-6">
+          <h2 className="mb-5 text-xl font-bold">Order Summary</h2>
+
+          <div className="space-y-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Total Items</span>
+              <span>{totalQuantity}</span>
             </div>
-          </aside>
-        </div>
-      )}
+
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Subtotal</span>
+              <span>{formatPrice(totalPrice)}</span>
+            </div>
+
+            <div className="border-t pt-4">
+              <div className="flex justify-between gap-4 text-lg font-bold">
+                <span>Total</span>
+                <span>{formatPrice(totalPrice)}</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-5 text-xs leading-5 text-gray-500">
+            Final price ကို Server က Database ထဲရှိ Product ဈေးနှုန်းအတိုင်း
+            ပြန်လည်တွက်ချက်ပေးရပါမယ်။
+          </p>
+        </aside>
+      </div>
     </main>
   );
 }

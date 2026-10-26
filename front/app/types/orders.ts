@@ -6,6 +6,28 @@ export type OrderStatus =
   | "DELIVERED"
   | "CANCELLED";
 
+/* =========================================
+   Create Order Types
+========================================= */
+
+export type CreateOrderItemInput = {
+  productId: string;
+  quantity: number;
+};
+
+export type CreateOrderInput = {
+  items: CreateOrderItemInput[];
+};
+
+/* =========================================
+   My Orders Query
+========================================= */
+
+export type MyOrdersQuery = {
+  page?: number;
+  limit?: number;
+};
+
 export type OrderItem = {
   id: string;
   productId: string;

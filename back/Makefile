@@ -40,6 +40,27 @@ dev:
 dev-build:
 	npm run build
 
+redis-test:
+	docker compose -f docker-compose.dev.yml exec redis redis-cli ping
+
+docker-dev-build:
+	docker compose -f docker-compose.dev.yml up -d --build
+
+docker-dev-down:
+	docker compose -f docker-compose.dev.yml down
+
+docker-dev-start:
+	docker compose -f docker-compose.dev.yml start
+
+docker-dev-stop:
+	docker compose -f docker-compose.dev.yml stop
+
+docker-dev-restart:
+	docker compose -f docker-compose.dev.yml restart
+
+docker-dev-logs:
+	docker compose -f docker-compose.dev.yml logs -f api
+	
 dev-logs:
 	docker compose -f docker-compose.dev.yml logs -f api
 
