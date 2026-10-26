@@ -17,3 +17,4 @@ Backend — NestJS
 - Producer-Consumer Pattern — Process Excel exports asynchronously with BullMQ and Redis.
 - Prisma ORM — Manage type-safe database queries and transactions.
 - Background Job Processing — Generate Excel files without blocking API requests.
+- cacheing
