@@ -9,6 +9,7 @@ import { CategoriesModule } from './categories/categories.module.js';
 import { AdminOrdersModule } from './admin/orders/admin-orders.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { BullModule } from '@nestjs/bullmq';
+import { ProductExportModule } from './product-export/product-export.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { BullModule } from '@nestjs/bullmq';
     CategoriesModule,
     AdminOrdersModule,
     OrdersModule,
+    ProductExportModule,
   ],
   controllers: [AppController],
   providers: [AppService],

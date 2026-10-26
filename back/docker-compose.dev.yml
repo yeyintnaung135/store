@@ -15,8 +15,10 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
+  redis_dev:
     image: redis:7-alpine
+    ports:
+      - '6379:6379'
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -43,8 +45,8 @@ services:
       DATABASE_URL: postgresql://store:store@postgres:5432/store?schema=public
       JWT_SECRET: dev-only-secret
       CORS_ORIGIN: http://localhost:3001
-      REDIS_HOST: ${REDIS_HOST:-redis}
-      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_HOST: redis_dev
+      REDIS_PORT: 6379
       PRODUCT_EXPORT_DIR: storage/exports
     volumes:
       - .:/app
@@ -53,7 +55,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      redis_dev:
         condition: service_healthy
 
 volumes:
