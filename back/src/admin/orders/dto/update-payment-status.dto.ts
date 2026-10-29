@@ -1,6 +1,6 @@
-// import { IsIn } from 'class-validator';
+import { IsIn } from 'class-validator';
 
-// export class UpdatePaymentStatusDto {
-//   @IsIn(['PAID'])
-//   status!: 'PAID';
-// }
+export class UpdatePaymentStatusDto {
+  @IsIn(['PAID'])
+  status!: 'PAID';
+}
