@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Frontend — Next.js
 
-## Getting Started
+- Context API + useReducer — Global authentication and cart state management.
+- Server Actions — Handle server-side operations and form submissions.
+- Component-Based Architecture — Build reusable UI components.
+- Centralized API Layer — Manage backend API requests in one place.
+- JWT Authentication — Manage access tokens and authenticated API requests.
+- Separation of Concerns — Separate UI, state management, and API logic.
+- Automate build, test.
+-  Unit Testing — Test individual functions and services.
+- E2E Testing — Test complete API and user workflows.
+- Code Quality — ESLint, Prettier, and TypeScript type checking.
 
-First, run the development server:
+Backend — NestJS
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Modular Architecture — Organize Auth, Products, Orders, and Export modules.
+- Controller-Service Pattern — Separate HTTP handling from business logic.
+- Dependency Injection (DI) — Manage service dependencies through NestJS.
+- Guard Pattern (JWT + RBAC) — Protect routes using authentication and role-based authorization.
+- DTO + Validation — Validate incoming API requests.
+- Producer-Consumer Pattern — Process Excel exports asynchronously with BullMQ and Redis.
+- Prisma ORM — Manage type-safe database queries and transactions.
+- Background Job Processing — Generate Excel files without blocking API requests.
+- cacheing
+- Automate build, test.
+-  Unit Testing — Test individual functions and services.
+- E2E Testing — Test complete API and user workflows.
+- Code Quality — ESLint, Prettier, and TypeScript type checking.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
