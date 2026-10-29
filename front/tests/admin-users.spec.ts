@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Admin Users", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("accessToken", "admin-token");
+    });
     await page.goto("/admin/users");
   });
 
@@ -40,8 +43,12 @@ test.describe("Admin Users", () => {
   test("should search users by name", async ({ page }) => {
     await page.getByRole("searchbox", { name: "Search users" }).fill("Aye Aye");
 
-    await expect(page.getByText("USR-002")).toBeVisible();
-    await expect(page.getByText("USR-001")).toHaveCount(0);
+    await expect(
+      page.getByRole("cell", { name: "USR-002", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("cell", { name: "USR-001", exact: true }),
+    ).toHaveCount(0);
     await expect(page.getByText("Showing 1–1 of 1 users")).toBeVisible();
   });
 

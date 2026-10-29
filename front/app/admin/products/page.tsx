@@ -354,15 +354,19 @@ export default function AdminProductsPage() {
 
       // Return to the first page after creating a product.
       if (!editingId) {
+        const alreadyOnFirstPage =
+          page === 1 && search === "" && categoryId === "";
+
         setPage(1);
         setSearch("");
         setCategoryId("");
+
+        // Same filter state does not retrigger the list effect.
+        if (alreadyOnFirstPage) {
+          await loadProducts();
+        }
       } else {
         await loadProducts();
-      }
-
-      if (!editingId) {
-        // State changes trigger the list reload.
       }
     } catch (error) {
       setFormError(getErrorMessage(error));

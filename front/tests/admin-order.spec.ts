@@ -1,198 +1,118 @@
-import { test, expect } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-test.describe("Admin Products", () => {
+async function resetApi(page: Page) {
+  const response = await page.request.post("http://127.0.0.1:4010/__reset");
+  expect(response.ok()).toBeTruthy();
+}
+
+async function openOrders(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("accessToken", "admin-token");
+  });
+  await page.goto("/admin/orders");
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
+  await expect(page.getByText("ORD-A01")).toBeVisible();
+}
+
+test.describe("Admin orders", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/admin/products");
+    await resetApi(page);
+    await openOrders(page);
   });
 
-  test("should display the products page", async ({ page }) => {
-    await expect(
-      page.getByRole("heading", { name: "Products", exact: true }),
-    ).toBeVisible();
-
-    await expect(page.getByText("Total Products")).toBeVisible();
-    await expect(page.getByText("Active Products")).toBeVisible();
-    await expect(page.getByText("Low Stock", { exact: false })).toBeVisible();
-    await expect(page.getByText("Classic Cotton T-Shirt")).toBeVisible();
+  test("shows the order list and summary", async ({ page }) => {
+    await expect(page.getByText("Orders found")).toBeVisible();
+    await expect(page.getByText("All orders")).toBeVisible();
+    await expect(page.getByText("12 order(s) found")).toBeVisible();
+    await expect(page.getByText("Showing 1–10 of 12")).toBeVisible();
+    await expect(page.getByText("Customer 1", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Refresh orders" })).toBeVisible();
   });
 
-  test("should search products by name", async ({ page }) => {
+  test("searches orders by customer name", async ({ page }) => {
+    await page.getByRole("searchbox", { name: "Search orders" }).fill("Aye Aye");
+
+    await expect(page.getByText("ORD-A02")).toBeVisible();
+    await expect(page.getByText("ORD-A01")).toHaveCount(0);
+    await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
+  });
+
+  test("searches orders by order number", async ({ page }) => {
+    await page.getByRole("searchbox", { name: "Search orders" }).fill("ORD-A03");
+
+    await expect(page.getByText("Customer 3")).toBeVisible();
+    await expect(page.getByText("ORD-A01")).toHaveCount(0);
+  });
+
+  test("shows an empty state when nothing matches", async ({ page }) => {
     await page
-      .getByRole("textbox", { name: "Search products" })
-      .fill("Classic Cotton");
+      .getByRole("searchbox", { name: "Search orders" })
+      .fill("no-matching-order");
 
-    await expect(page.getByText("Classic Cotton T-Shirt")).toBeVisible();
-    await expect(page.getByText("Wireless Headphones")).toHaveCount(0);
+    await expect(page.getByText("No orders found")).toBeVisible();
+    await expect(page.getByText("No results")).toBeVisible();
   });
 
-  test("should show empty state for unmatched search", async ({ page }) => {
+  test("filters orders by status", async ({ page }) => {
     await page
-      .getByRole("textbox", { name: "Search products" })
-      .fill("not-a-real-product");
+      .getByRole("combobox", { name: "Filter by order status" })
+      .selectOption("PENDING");
 
-    await expect(
-      page.getByText("No products found. Try another search or category.", {
-        exact: true,
-      }),
-    ).toBeVisible();
+    await expect(page.getByText("ORD-A01")).toBeVisible();
+    await expect(page.getByText("ORD-A02")).toHaveCount(0);
+    await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
   });
 
-  test("should filter products by category", async ({ page }) => {
-    await page
-      .getByRole("combobox", { name: "Filter by category" })
-      .selectOption("Electronics");
+  test("resets search and status filters", async ({ page }) => {
+    await page.getByRole("searchbox", { name: "Search orders" }).fill("Aye Aye");
+    await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
 
-    await expect(page.getByText("Wireless Headphones")).toBeVisible();
-    await expect(page.getByText("Classic Cotton T-Shirt")).toHaveCount(0);
+    await page.getByRole("button", { name: "Reset" }).click();
+
+    await expect(page.getByRole("searchbox", { name: "Search orders" })).toHaveValue(
+      "",
+    );
+    await expect(page.getByText("ORD-A01")).toBeVisible();
+    await expect(page.getByText("Showing 1–10 of 12")).toBeVisible();
   });
 
-  test("should paginate products", async ({ page }) => {
-    await expect(page.getByText("Showing 1–5 of 10 products")).toBeVisible();
-
+  test("paginates orders", async ({ page }) => {
     await page.getByRole("button", { name: "Next", exact: true }).click();
 
-    await expect(page.getByText("Showing 6–10 of 10 products")).toBeVisible();
+    await expect(page.getByText("Showing 11–12 of 12")).toBeVisible();
+    await expect(page.getByText("ORD-A11")).toBeVisible();
+    await expect(page.getByText("ORD-A01")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Previous", exact: true }).click();
-
-    await expect(page.getByText("Showing 1–5 of 10 products")).toBeVisible();
+    await expect(page.getByText("Showing 1–10 of 12")).toBeVisible();
   });
 
-  test("should open the add product modal", async ({ page }) => {
-    await page.getByRole("button", { name: /add product/i }).click();
+  test("opens and closes order details", async ({ page }) => {
+    const row = page.getByRole("row").filter({ hasText: "ORD-A01" });
+    await row.getByRole("button", { name: "View details" }).click();
 
     const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "ORD-A01" })).toBeVisible();
+    await expect(dialog.getByText("Customer 1", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Wireless Headphones")).toBeVisible();
+    await expect(dialog.getByText("customer1@example.com")).toBeVisible();
 
-    await expect(dialog).toBeVisible();
-    await expect(
-      dialog.getByRole("heading", { name: "Add Product" }),
-    ).toBeVisible();
-  });
-
-  test("should validate required product fields", async ({ page }) => {
-    await page.getByRole("button", { name: /add product/i }).click();
-
-    const dialog = page.getByRole("dialog");
-
-    await dialog
-      .getByRole("button", { name: "Create Product", exact: true })
-      .click();
-
-    await expect(
-      dialog.getByText(
-        "Enter a product name, a valid price, and a whole-number stock of zero or more.",
-        { exact: true },
-      ),
-    ).toBeVisible();
-  });
-
-  test("should create a product", async ({ page }) => {
-    await page.getByRole("button", { name: /add product/i }).click();
-
-    const dialog = page.getByRole("dialog");
-
-    await dialog.getByLabel("Product Name").fill("Playwright Test Product");
-    await dialog
-      .getByLabel("Category", { exact: true })
-      .selectOption("Electronics");
-    await dialog.getByLabel("Price (MMK)").fill("25000");
-    await dialog.getByLabel("Stock").fill("12");
-    await dialog.getByLabel("Status").selectOption("Active");
-
-    await dialog
-      .getByRole("button", { name: "Create Product", exact: true })
-      .click();
-
+    await dialog.getByRole("button", { name: "Close order details" }).click();
     await expect(dialog).toHaveCount(0);
-
-    await page
-      .getByRole("textbox", { name: "Search products" })
-      .fill("Playwright Test Product");
-
-    await expect(page.getByText("Playwright Test Product")).toBeVisible();
   });
 
-  test("should edit an existing product", async ({ page }) => {
-    const productRow = page.getByRole("row").filter({
-      hasText: "Classic Cotton T-Shirt",
-    });
-
-    await productRow
-      .getByRole("button", { name: "Edit Classic Cotton T-Shirt" })
-      .click();
+  test("updates an order status", async ({ page }) => {
+    const row = page.getByRole("row").filter({ hasText: "ORD-A01" });
+    await row.getByRole("button", { name: "View details" }).click();
 
     const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Mark as Confirmed" }).click();
 
-    await expect(
-      dialog.getByRole("heading", { name: "Edit Product" }),
-    ).toBeVisible();
+    await expect(dialog.getByRole("status")).toHaveText(
+      "Order status updated to Confirmed.",
+    );
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
 
-    await dialog.getByLabel("Product Name").fill("Updated Cotton T-Shirt");
-
-    await dialog
-      .getByRole("button", { name: "Save Changes", exact: true })
-      .click();
-
-    await expect(dialog).toHaveCount(0);
-    await expect(page.getByText("Updated Cotton T-Shirt")).toBeVisible();
-  });
-
-  test("should cancel product deletion", async ({ page }) => {
-    const productRow = page.getByRole("row").filter({
-      hasText: "Classic Cotton T-Shirt",
-    });
-
-    await productRow
-      .getByRole("button", { name: "Delete Classic Cotton T-Shirt" })
-      .click();
-
-    const alertDialog = page.getByRole("alertdialog");
-
-    await expect(alertDialog).toBeVisible();
-    await expect(
-      alertDialog.getByRole("heading", { name: "Delete Product?" }),
-    ).toBeVisible();
-
-    await alertDialog
-      .getByRole("button", { name: "Cancel", exact: true })
-      .click();
-
-    await expect(alertDialog).toHaveCount(0);
-    await expect(page.getByText("Classic Cotton T-Shirt")).toBeVisible();
-  });
-
-  test("should delete a product after confirmation", async ({ page }) => {
-    const productRow = page.getByRole("row").filter({
-      hasText: "Classic Cotton T-Shirt",
-    });
-
-    await productRow
-      .getByRole("button", { name: "Delete Classic Cotton T-Shirt" })
-      .click();
-
-    const alertDialog = page.getByRole("alertdialog");
-
-    await expect(alertDialog).toBeVisible();
-
-    await expect(alertDialog.getByText("Classic Cotton T-Shirt")).toBeVisible();
-
-    await alertDialog
-      .getByRole("button", { name: "Delete", exact: true })
-      .click();
-
-    await expect(alertDialog).toHaveCount(0);
-    await expect(page.getByText("Classic Cotton T-Shirt")).toHaveCount(0);
-  });
-
-  test("should close the add product modal", async ({ page }) => {
-    await page.getByRole("button", { name: /add product/i }).click();
-
-    const dialog = page.getByRole("dialog");
-
-    await expect(dialog).toBeVisible();
-
-    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-
-    await expect(dialog).toHaveCount(0);
+    await expect(row.getByText("Confirmed")).toBeVisible();
   });
 });

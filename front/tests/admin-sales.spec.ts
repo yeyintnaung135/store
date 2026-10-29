@@ -31,6 +31,9 @@ async function fillDate(input: Locator, value: string) {
 
 test.describe("Admin Sales", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("accessToken", "admin-token");
+    });
     await page.goto("/admin/sales");
   });
 
