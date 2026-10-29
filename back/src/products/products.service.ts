@@ -168,6 +168,11 @@ export class ProductsService {
             ? { categoryId: dto.categoryId }
             : {}),
           ...(dto.status !== undefined ? { status: dto.status } : {}),
+          ...(dto.photoUrl !== undefined
+            ? {
+                photoUrl: dto.photoUrl ? this.photos.save(dto.photoUrl) : null,
+              }
+            : {}),
         },
         include: { category: true },
       });

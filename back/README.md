@@ -40,10 +40,9 @@ npm run format:check
 
 | Script | What it covers |
 | --- | --- |
-| `npm test` | Unit tests next to source (`src/**/*.spec.ts`) |
+| `npm test` | Same as `npm run test:e2e` |
 | `npm run test:integration` | In-process HTTP tests through `AppModule` against the `store_test` database |
 | `npm run test:e2e` | Builds the app, starts `dist/main.js`, and calls the live server using `store_test` |
-| `npm run test:cov` | Unit test coverage |
 
 ## Docker
 
@@ -59,8 +58,8 @@ Tests use a separate database, `store_test`, from `.env.test`. `npm run test:int
 
 Swagger UI is at `/docs`. The OpenAPI document is at `/docs-json`.
 
-Prisma Client is generated TypeScript in `src/generated/prisma` (not committed). `npm run build` and `npm test` generate it. After schema changes, run `npm run prisma:migrate`.
+Prisma Client is generated TypeScript in `src/generated/prisma` (not committed). `npm run build` and `npm run test:e2e` generate it. After schema changes, run `npm run prisma:migrate`.
 
 ## CI
 
-`.github/workflows/ci.yml` installs dependencies, lints, checks formatting, builds, runs all three test suites, and builds the Docker image.
+`.github/workflows/back.yml` installs dependencies, lints, checks formatting, then runs the end-to-end tests. That job provides Postgres (`store_test`) and Redis. `npm run test:e2e` builds the API, applies migrations, and calls the live server. A second job builds the Docker image.

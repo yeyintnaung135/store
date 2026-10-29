@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from 'node:crypto';
 
 import { Prisma } from '../generated/prisma/client.js';
 import type { UserRole } from '../generated/prisma/enums.js';
@@ -254,6 +259,7 @@ export class AuthService {
         },
         {
           expiresIn: '15m',
+          jwtid: randomUUID(),
         },
       ),
       user: this.toPublicUser(user),

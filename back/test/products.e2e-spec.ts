@@ -49,7 +49,7 @@ describe('Products (e2e)', () => {
     });
     const loggedIn = await request(baseUrl)
       .post('/auth/login')
-      .send({ email, password: 'secret-password' })
+      .send({ identifier: email, password: 'secret-password' })
       .expect(200);
     accessToken = loggedIn.body.accessToken;
 
@@ -112,11 +112,11 @@ describe('Products (e2e)', () => {
     };
   }
 
-  it('requires a bearer token for every product route', async () => {
-    await request(baseUrl).get('/products').expect(401);
+  it('allows public product reads and requires a token for writes', async () => {
+    await request(baseUrl).get('/products').expect(200);
     await request(baseUrl)
       .get('/products/00000000-0000-4000-8000-000000000088')
-      .expect(401);
+      .expect(404);
     await request(baseUrl)
       .post('/products')
       .send({

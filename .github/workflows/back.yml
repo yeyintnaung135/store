@@ -48,8 +48,21 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       DATABASE_URL: postgresql://store:store@localhost:5432/store_test?schema=public
+      JWT_SECRET: test-jwt-secret
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
 
     steps:
       - name: Checkout repository
@@ -68,19 +81,13 @@ jobs:
       - name: Generate Prisma Client
         run: npm run prisma:generate
 
-      - name: Apply test database migrations
-        run: npx prisma migrate deploy
-
       - name: Lint
         run: npm run lint
 
       - name: Check formatting
         run: npm run format:check
 
-      - name: Build NestJS
-        run: npm run build
-
-      - name: End-to-end tests
+      - name: Build and run end-to-end tests
         run: npm run test:e2e
 
   docker:

@@ -38,7 +38,7 @@ describe('Categories (e2e)', () => {
     });
     const loggedIn = await request(baseUrl)
       .post('/auth/login')
-      .send({ email, password: 'secret-password' })
+      .send({ identifier: email, password: 'secret-password' })
       .expect(200);
     accessToken = loggedIn.body.accessToken;
 
@@ -81,16 +81,16 @@ describe('Categories (e2e)', () => {
       .expect(401);
   });
 
-  it('lets a customer read categories and blocks writes', async () => {
+  it('blocks a customer from reading or changing categories', async () => {
     await request(baseUrl)
       .get('/categories')
       .set('Authorization', `Bearer ${customerToken}`)
-      .expect(200);
+      .expect(403);
 
     await request(baseUrl)
       .get('/categories/00000000-0000-4000-8000-000000000088')
       .set('Authorization', `Bearer ${customerToken}`)
-      .expect(404);
+      .expect(403);
 
     await request(baseUrl)
       .post('/categories')
